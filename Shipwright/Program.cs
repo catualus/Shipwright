@@ -32,6 +32,9 @@ namespace Shipwright
                     case "check-icon":
                         return CheckIcon(args);
 
+                    case "status":
+                        return Status(args);
+
                     case "-h":
                     case "--help":
                     case "help":
@@ -99,6 +102,36 @@ namespace Shipwright
             return 0;
         }
 
+        /// <summary>
+        /// Prints what a queue row should say about this map, as one line of JSON.
+        ///
+        /// Compile Pal runs this for every queued map whenever the queue or the preset changes, so
+        /// it touches nothing but the state file beside the map: no network, no Steam, no gmad. The
+        /// answer has to be instant and the same every time it is asked.
+        ///
+        /// Nothing else is printed. The host reads stdout as the result, so a warning about a
+        /// malformed state file would arrive where a JSON object was expected.
+        /// </summary>
+        private static int Status(string[] args)
+        {
+            var options = Options.Parse(args, 1);
+
+            Log.Sink = _ => { };        // swallow anything the loaders want to say
+
+            string? stepArgs = Environment.GetEnvironmentVariable(MapStatusReporter.StepArgsVariable);
+
+            bool stepEnabled = !string.Equals(
+                Environment.GetEnvironmentVariable(MapStatusReporter.StepEnabledVariable), "false",
+                StringComparison.OrdinalIgnoreCase);
+
+            var status = MapStatusReporter.Describe(options.StatePath!, stepArgs, stepEnabled);
+
+            Log.Sink = null;
+            Console.Out.WriteLine(status.ToJson());
+
+            return 0;
+        }
+
         private static int CheckIcon(string[] args)
         {
             if (args.Length < 2)
@@ -125,6 +158,7 @@ namespace Shipwright
             Log.Line();
             Log.Line("  shipwright publish <map.bsp> [options]");
             Log.Line("  shipwright inspect <map.bsp> [-vmf <path>] [-state <path>]");
+            Log.Line("  shipwright status <map.bsp> [-vmf <path>]          one line of JSON, for a queue row");
             Log.Line("  shipwright check-icon <icon.jpg>");
             Log.Line();
             Log.Line("Publishing is off by default. Without -publish the run builds the addon, says exactly");
