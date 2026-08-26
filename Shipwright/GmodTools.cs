@@ -110,36 +110,59 @@ namespace Shipwright
         /// <summary>
         /// Reads the item list out of gmpublish's output.
         ///
-        /// Tolerant on purpose. The format is not documented and not stable - it is a console tool's
-        /// human-readable output - so this looks for the two things every plausible shape of it has:
-        /// a Workshop id, and the rest of the line as a title. A line it cannot read is skipped
-        /// rather than guessed at, and the caller shows the raw output when nothing at all parsed.
+        /// The real thing looks like this:
+        ///
+        /// <code>
+        /// Setting breakpad minidump AppID = 4000
+        /// SteamInternal_SetMinidumpSteamID:  Caching Steam ID:  76561198115990249 [API loaded no]
+        ///
+        /// Getting published files..
+        ///         3790485925      50.4 KB "[Meowy Roleplay] Gang Flag"
+        ///         3706313781      74.8 MB "[Meowy Roleplay] Map"
+        /// Done
+        /// </code>
+        ///
+        /// Two things in that are traps. The minidump line carries a SteamID - seventeen digits, a
+        /// perfectly good looking Workshop id - so an id is only accepted when it is the first thing
+        /// on the line. And the size sits between the id and the title, so taking "the rest of the
+        /// line" as a title produces "50.4 KB [Meowy Roleplay] Gang Flag".
+        ///
+        /// Still forgiving about the shape: the title is read from quotes when they are there, and
+        /// from the line with a leading size removed when they are not, because this is a console
+        /// tool's output rather than an interface and it has changed before.
         /// </summary>
         internal static List<PublishedItem> ParseList(string output)
         {
             var items = new List<PublishedItem>();
             var seen = new HashSet<ulong>();
 
-            foreach (string line in output.Split('\n'))
+            foreach (string raw in output.Split('\n'))
             {
-                var match = Regex.Match(line, @"(?<id>\d{6,20})");
+                var line = Regex.Match(raw.TrimEnd(), @"^\s*(?<id>\d{6,20})(\s+(?<rest>.*))?$");
 
-                if (!match.Success || !Sanitize.IsWorkshopId(match.Groups["id"].Value, out ulong id))
+                if (!line.Success || !Sanitize.IsWorkshopId(line.Groups["id"].Value, out ulong id))
                     continue;
-
-                // The banner carries a build date, and a date is a run of digits too.
-                if (line.Contains("Compiled", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                string title = Sanitize.Title(
-                    line.Remove(match.Index, match.Length)
-                        .Trim(' ', '\t', '\r', '-', ':', '|', '.', '\"', '\\'));
 
                 if (seen.Add(id))
-                    items.Add(new PublishedItem(id, title));
+                    items.Add(new PublishedItem(id, TitleFrom(line.Groups["rest"].Value)));
             }
 
             return items;
+        }
+
+        /// <summary>The title out of what follows the id: the quoted part, or the part after the size.</summary>
+        private static string TitleFrom(string rest)
+        {
+            var quoted = Regex.Match(rest, "\"(?<title>[^\"]*)\"");
+
+            if (quoted.Success)
+                return Sanitize.DisplayText(quoted.Groups["title"].Value, Sanitize.MaxTitle);
+
+            // "74.8 MB Some Addon" - the size is gmpublish's, not part of anybody's title.
+            string withoutSize = Regex.Replace(rest, @"^\s*\d+(\.\d+)?\s*(B|KB|MB|GB|TB)\s*", "",
+                RegexOptions.IgnoreCase);
+
+            return Sanitize.DisplayText(withoutSize.Trim(' ', '\t', '-', ':', '|'), Sanitize.MaxTitle);
         }
 
         /// <summary>Creates a new item. The icon is required; gmpublish fails with (9) without one.</summary>
@@ -210,6 +233,15 @@ namespace Shipwright
 
                 UseShellExecute = false,
                 CreateNoWindow = true,
+
+                /*
+                 * gmpublish writes UTF-8. Read with the console's OEM code page instead - which is
+                 * what .NET does by default - an item called "Zero's Trashman" comes back as
+                 * "Zero\u00b4s", and every accented title in somebody's Workshop turns to mojibake
+                 * on the way into the list.
+                 */
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
             };
 
             foreach (string argument in arguments)

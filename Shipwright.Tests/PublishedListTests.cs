@@ -7,88 +7,107 @@ namespace Shipwright.Tests
     /// <summary>
     /// Reading the account's own items out of gmpublish.
     ///
-    /// The format is a console tool's human-readable output, not an interface: it is undocumented,
-    /// it has changed between versions, and the banner at the top contains a date that looks like an
-    /// id if you squint. So the parser is written to find ids and ignore what it cannot read, and
-    /// these fixtures cover the shapes it plausibly meets rather than one shape it must meet.
+    /// The first fixture is the real thing, captured from `gmpublish.exe list` on a machine with ten
+    /// published items. Everything the parser does that is not obvious - refusing an id that is not
+    /// the first thing on its line, dropping the size that sits between the id and the title - is
+    /// there because of a trap in that output rather than a hypothetical.
     /// </summary>
     public class PublishedListTests
     {
-        private const string Banner =
-            "Garry's Mod Workshop Publisher 1.2\nCompiled Jun 15 2026 - 16:07:09\n\n";
+        /// <summary>
+        /// Real output. Note the second line: a SteamID is seventeen digits, and taking the first
+        /// long number on any line would file it as a Workshop item called
+        /// "SteamInternal_SetMinidumpSteamID: Caching Steam ID: [API loaded no]".
+        /// </summary>
+        private const string RealOutput =
+            "Garry's Mod Workshop Publisher 1.2\n" +
+            "[Compiled Jun 15 2026 - 16:07:09]\n" +
+            "\n" +
+            "Setting breakpad minidump AppID = 4000\n" +
+            "SteamInternal_SetMinidumpSteamID:  Caching Steam ID:  76561198115990249 [API loaded no]\n" +
+            "\n" +
+            "Getting published files..\n" +
+            "\t3790485925\t50.4 KB \"[Meowy Roleplay] Gang Flag\"\n" +
+            "\t3709971909\t26.6 MB \"Zero´s Trashman - Contentpack [Reupload]\"\n" +
+            "\t3706313781\t74.8 MB \"[Meowy Roleplay] Map\"\n" +
+            "\t3657646236\t1.1 GB\t\"[Meowy Roleplay] Weaponry\"\n" +
+            "\t3135471114\t113.2 MB\t\"Fixed M9K Specialties\"\n" +
+            "Done\n";
 
         [Fact]
-        public void ReadsIdAndTitleFromASimpleList()
+        public void ReadsEveryItemAndNothingElse()
         {
-            var items = GmodTools.ParseList(Banner +
-                "3211445566 - Atlas RP | Downtown\n" +
-                "3298112034 - Atlas RP | Docks (beta)\n");
+            var items = GmodTools.ParseList(RealOutput);
 
-            Assert.Equal(2, items.Count);
-            Assert.Equal(3211445566UL, items[0].Id);
-            Assert.Equal("Atlas RP | Downtown", items[0].Title);
-            Assert.Equal("Atlas RP | Docks (beta)", items[1].Title);
+            Assert.Equal(5, items.Count);
+            Assert.DoesNotContain(items, i => i.Id == 76561198115990249);
         }
 
         [Fact]
-        public void ReadsATitleThatComesFirst()
+        public void TheSizeIsNotPartOfTheTitle()
         {
-            var items = GmodTools.ParseList(Banner + "Atlas RP | Downtown (3211445566)\n");
+            var items = GmodTools.ParseList(RealOutput);
+
+            Assert.Equal(3790485925UL, items[0].Id);
+            Assert.Equal("[Meowy Roleplay] Gang Flag", items[0].Title);
+            Assert.DoesNotContain("KB", items[0].Title);
+            Assert.DoesNotContain("MB", items[2].Title);
+        }
+
+        [Fact]
+        public void ATitleKeepsItsOwnCharacters()
+        {
+            var items = GmodTools.ParseList(RealOutput);
+
+            // Not everybody's Workshop is in English; reducing titles to ASCII would leave some of
+            // them empty and this one misspelt.
+            Assert.Equal("Zero´s Trashman - Contentpack [Reupload]", items[1].Title);
+        }
+
+        [Fact]
+        public void TabsBetweenTheColumnsAreNotTheTitleEither()
+        {
+            var items = GmodTools.ParseList(RealOutput);
+
+            Assert.Equal("[Meowy Roleplay] Weaponry", items[3].Title);
+            Assert.Equal("Fixed M9K Specialties", items[4].Title);
+        }
+
+        [Fact]
+        public void AnIdInTheMiddleOfALineIsNotAnItem() =>
+            Assert.Empty(GmodTools.ParseList(
+                "SteamInternal_SetMinidumpSteamID:  Caching Steam ID:  76561198115990249 [API loaded no]\n"));
+
+        [Fact]
+        public void AnUnquotedTitleStillReadsAfterTheSize()
+        {
+            var items = GmodTools.ParseList("\t3790485925\t50.4 KB Some Addon Without Quotes\n");
 
             Assert.Single(items);
-            Assert.Equal(3211445566UL, items[0].Id);
-            Assert.Contains("Atlas RP", items[0].Title);
+            Assert.Equal("Some Addon Without Quotes", items[0].Title);
         }
 
         [Fact]
-        public void ReadsAColumnLayout()
+        public void AnItemWithNothingAfterTheIdIsStillAnItem()
         {
-            var items = GmodTools.ParseList(Banner +
-                "ID           Title\n" +
-                "3211445566   Atlas RP | Downtown\n");
-
-            Assert.Single(items);
-            Assert.Equal("Atlas RP | Downtown", items[0].Title);
-        }
-
-        [Fact]
-        public void TheBannerIsNotAnItem()
-        {
-            // "Compiled Jun 15 2026 - 16:07:09" has a run of digits in it.
-            Assert.Empty(GmodTools.ParseList(Banner));
-        }
-
-        [Fact]
-        public void AnItemWithNoTitleIsStillAnItem()
-        {
-            var items = GmodTools.ParseList(Banner + "3211445566\n");
+            var items = GmodTools.ParseList("\t3790485925\t\n");
 
             Assert.Single(items);
             Assert.Equal("", items[0].Title);
         }
 
         [Fact]
-        public void TheSameItemTwiceIsOneItem()
-        {
-            var items = GmodTools.ParseList(Banner +
-                "3211445566 - Atlas\n3211445566 - Atlas\n");
-
-            Assert.Single(items);
-        }
+        public void TheSameItemTwiceIsOneItem() =>
+            Assert.Single(GmodTools.ParseList("\t3790485925\t1 KB \"Atlas\"\n\t3790485925\t1 KB \"Atlas\"\n"));
 
         [Fact]
-        public void AnErrorInsteadOfAListIsNoItems()
-        {
-            Assert.Empty(GmodTools.ParseList(Banner + "Error:\n\nCouldn't initialize Steam!\nMake sure it is running!\n"));
-        }
+        public void AnErrorInsteadOfAListIsNoItems() =>
+            Assert.Empty(GmodTools.ParseList(
+                "Garry's Mod Workshop Publisher 1.2\nError:\n\nCouldn't initialize Steam!\nMake sure it is running!\n"));
 
         [Fact]
-        public void TitlesAreSanitisedTheWayEverythingElseIs()
-        {
-            var items = GmodTools.ParseList(Banner + "3211445566 - Atlas \"quoted\" RP\n");
-
-            Assert.DoesNotContain('"', items[0].Title);
-        }
+        public void TheBannerIsNotAnItem() =>
+            Assert.Empty(GmodTools.ParseList("Garry's Mod Workshop Publisher 1.2\n[Compiled Jun 15 2026 - 16:07:09]\n"));
     }
 
     public class SteamAppDirectoryTests
