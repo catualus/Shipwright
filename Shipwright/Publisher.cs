@@ -90,7 +90,7 @@ namespace Shipwright
              * Steam is running, is signed in, and the only thing wrong is that its own registration
              * points at a process that has exited.
              */
-            if (options.Publish && SteamState.Check() is { Healthy: false } steam)
+            if (options.Publish && SteamState.Check() is { WorthSayingUpFront: true } steam)
                 Log.Warn(steam.Message);
 
             using var staging = Staging.Create(mapName, options.KeepStaging);

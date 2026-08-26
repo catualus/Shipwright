@@ -19,11 +19,11 @@ namespace Shipwright
         /// <summary>
         /// Running and signed in, but the client registration names a process that is gone.
         ///
-        /// This is the one worth having a name for. Steam records the client's process id in the
-        /// registry, and an application asking Steamworks to initialise is refused when that id
-        /// belongs to nothing - so gmpublish says "Couldn't initialize Steam! Make sure it is
-        /// running!" while Steam is plainly running, and there is no way to guess from that message
-        /// that the answer is to restart it.
+        /// A hint, and nothing stronger. Steam records a process id in the registry and an
+        /// application refused by Steamworks often finds that id belongs to nothing - but a machine
+        /// has been seen where the id was long dead, stayed dead across restarts, and gmpublish
+        /// published perfectly well anyway. So this is never announced up front; it is only offered
+        /// as a possible reason once something has actually failed.
         /// </summary>
         Stale,
 
@@ -34,15 +34,24 @@ namespace Shipwright
     public sealed record SteamStatus(SteamReadiness Readiness, string Message)
     {
         /// <summary>
-        /// Whether this is a state worth warning about before starting.
-        ///
-        /// Not "whether to refuse". This is read off the registry from outside Steam, and being wrong
-        /// about it is entirely possible - a machine has been seen where the registration stayed
-        /// stale across two restarts while everything else about Steam looked healthy. A check that
-        /// can be wrong must not be the thing that stops a publish: it warns, the upload is attempted
-        /// anyway, and if that fails this is what explains why.
+        /// Whether Steam looks usable. Never a reason to refuse - see <see cref="WorthSayingUpFront"/>.
         /// </summary>
         public bool Healthy => Readiness is SteamReadiness.Ready or SteamReadiness.Unknown;
+
+        /// <summary>
+        /// Whether this is solid enough to say before anything has gone wrong.
+        ///
+        /// Only the two facts that are actually observable: there is no Steam process, or nobody is
+        /// signed in. Both are read directly rather than inferred, and both are worth knowing before
+        /// a map is packed.
+        ///
+        /// <see cref="SteamReadiness.Stale"/> is deliberately not one of them. It is an inference
+        /// from a registry value about what Steamworks will do, it has been wrong on a real machine -
+        /// where every publish would have carried a confident warning about a problem that did not
+        /// exist - and a warning that cries wolf on a working setup is worse than no warning.
+        /// </summary>
+        public bool WorthSayingUpFront =>
+            Readiness is SteamReadiness.NotRunning or SteamReadiness.NotSignedIn;
     }
 
     /// <summary>
