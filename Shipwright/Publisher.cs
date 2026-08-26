@@ -77,6 +77,22 @@ namespace Shipwright
                 return Failed;
             }
 
+            /*
+             * Before anything is packed, not after.
+             *
+             * Packing a large map takes a while and produces a file nobody will use if the upload
+             * cannot happen, and the reasons it cannot are all knowable up front. Only when this run
+             * intends to publish: a dry run is exactly what someone with Steam closed should still
+             * be able to do.
+             *
+             * Said here rather than left to gmpublish, which reports every one of these the same way
+             * - "Couldn't initialize Steam! Make sure it is running!" - including the case where
+             * Steam is running, is signed in, and the only thing wrong is that its own registration
+             * points at a process that has exited.
+             */
+            if (options.Publish && SteamState.Check() is { Healthy: false } steam)
+                Log.Warn(steam.Message);
+
             using var staging = Staging.Create(mapName, options.KeepStaging);
 
             var chosen = ChooseFiles(options, facts, lump, mapName);
@@ -169,20 +185,6 @@ namespace Shipwright
                 return Ok;
             }
 
-            var steam = SteamState.Check();
-
-            if (!steam.CanPublish)
-            {
-                /*
-                 * Said here rather than left to gmpublish, which reports every one of these the same
-                 * way - "Couldn't initialize Steam! Make sure it is running!" - including the case
-                 * where Steam is running, is signed in, and the only thing wrong is that its own
-                 * registration points at a process that has exited.
-                 */
-                Log.Error(steam.Message);
-                return Failed;
-            }
-
             if (SteamState.GameRunning())
                 Log.Warn("Garry's Mod appears to be running. If the upload fails to initialise Steam, close it first.");
 
@@ -200,11 +202,13 @@ namespace Shipwright
 
             var result = GmodTools.Update(gmpublish, gmaPath, id, note);
 
-            if (!result.Ok)
+            if (!result.Ok || FailedToReachSteam(result))
             {
                 Log.Error($"gmpublish failed with exit code {result.ExitCode}. Nothing was published. " +
                           "Its output is above; a failure here usually means Steam is signed in as an account " +
                           "that does not own the item.");
+
+                ExplainSteamFailure(result);
                 return Failed;
             }
 
@@ -254,6 +258,13 @@ namespace Shipwright
                 return Failed;
             }
 
+            if (FailedToReachSteam(result))
+            {
+                Log.Error("gmpublish could not reach Steam, so nothing was created.");
+                ExplainSteamFailure(result);
+                return Failed;
+            }
+
             ulong? created = GmodTools.ParseCreatedId(result.Output);
 
             if (created is null)
@@ -277,6 +288,36 @@ namespace Shipwright
                      "accepted on its page, and its description and images are set on the website.");
             WarnAboutStrippedEntities(facts, options);
             return Ok;
+        }
+
+        /// <summary>
+        /// Whether gmpublish gave up before talking to Steam at all.
+        ///
+        /// It exits 0 when this happens, so the exit code says the run succeeded while nothing was
+        /// uploaded. The message it printed is the only evidence.
+        /// </summary>
+        private static bool FailedToReachSteam(ToolResult result) =>
+            result.Output.Contains("initialize Steam", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Adds what can be seen from outside Steam to gmpublish's one-line explanation.
+        ///
+        /// "Couldn't initialize Steam! Make sure it is running!" is what it says whether Steam is
+        /// closed, signed out, or running and signed in with a client registration pointing at a
+        /// process that no longer exists - and the last of those is the one nobody guesses.
+        /// </summary>
+        private static void ExplainSteamFailure(ToolResult result)
+        {
+            if (!FailedToReachSteam(result))
+                return;
+
+            var steam = SteamState.Check();
+
+            Log.Warn(steam.Healthy
+                ? "Steam looks healthy from here - running, signed in and registered - so this is the client " +
+                  "refusing a session for app 4000 rather than anything this tool can see. Running gmpublish " +
+                  "by hand from Garry's Mod's own folder will fail the same way."
+                : steam.Message);
         }
 
         private static void Record(Options options, WorkshopState state, ulong id, BspFacts facts, string hash)

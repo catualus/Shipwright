@@ -181,15 +181,6 @@ namespace Shipwright.Ui
             {
                 var steam = await Task.Run(SteamState.Check);
 
-                if (!steam.CanPublish)
-                {
-                    // Worth spelling out here. gmpublish reports every one of these the same way -
-                    // "Couldn't initialize Steam! Make sure it is running!" - including the case
-                    // where it is running, is signed in, and only its registration is stale.
-                    MineMessage.Text = steam.Message + " You can still bind by pasting a link.";
-                    return;
-                }
-
                 if (GmodTools.Find("gmpublish.exe", options.BinFolder) is not { } gmpublish)
                 {
                     MineMessage.Text = "gmpublish.exe was not found in Garry's Mod's bin folder.";
@@ -198,9 +189,14 @@ namespace Shipwright.Ui
 
                 var (result, items) = await Task.Run(() => GmodTools.List(gmpublish));
 
-                if (!result.Ok)
+                if (!result.Ok || result.Output.Contains("initialize Steam", StringComparison.OrdinalIgnoreCase))
                 {
-                    MineMessage.Text = $"gmpublish could not list your items (exit code {result.ExitCode}).";
+                    // gmpublish says the same sentence whether Steam is closed, signed out, or
+                    // running with a registration pointing at a process that has exited - so what is
+                    // added here is whatever can be seen from outside it.
+                    MineMessage.Text = (steam.Healthy
+                        ? "Steam would not give gmpublish a session, and looks healthy from here."
+                        : steam.Message) + " You can still bind by pasting a link.";
                     return;
                 }
 

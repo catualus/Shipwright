@@ -33,8 +33,16 @@ namespace Shipwright
 
     public sealed record SteamStatus(SteamReadiness Readiness, string Message)
     {
-        /// <summary>Whether it is worth attempting a publish at all.</summary>
-        public bool CanPublish => Readiness is SteamReadiness.Ready or SteamReadiness.Unknown;
+        /// <summary>
+        /// Whether this is a state worth warning about before starting.
+        ///
+        /// Not "whether to refuse". This is read off the registry from outside Steam, and being wrong
+        /// about it is entirely possible - a machine has been seen where the registration stayed
+        /// stale across two restarts while everything else about Steam looked healthy. A check that
+        /// can be wrong must not be the thing that stops a publish: it warns, the upload is attempted
+        /// anyway, and if that fails this is what explains why.
+        /// </summary>
+        public bool Healthy => Readiness is SteamReadiness.Ready or SteamReadiness.Unknown;
     }
 
     /// <summary>
@@ -92,9 +100,10 @@ namespace Shipwright
 
                 if (clientPid != 0 && !ProcessExists(clientPid))
                     return new SteamStatus(SteamReadiness.Stale,
-                        $"Steam is running and signed in, but its registration still points at process {clientPid}, " +
-                        "which no longer exists - so anything asking Steam to initialise is refused. " +
-                        "Restart Steam and it will work.");
+                        $"Steam is running and signed in, but its client registration points at process {clientPid}, " +
+                        "which no longer exists. That usually means anything asking Steam to initialise will be " +
+                        "refused. Restarting Steam normally clears it - and on at least one machine it did not, " +
+                        "in which case the client is refusing sessions for app 4000 for a reason only Steam knows.");
 
                 return new SteamStatus(SteamReadiness.Ready, "Steam is ready.");
             }

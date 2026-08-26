@@ -151,13 +151,8 @@ namespace Shipwright
                 if (string.Equals(args[i], "-bin", StringComparison.OrdinalIgnoreCase))
                     binFolder = args[i + 1];
 
-            var steam = SteamState.Check();
-
-            if (!steam.CanPublish)
-            {
-                Log.Error(steam.Message);
-                return 1;
-            }
+            if (SteamState.Check() is { Healthy: false } steam)
+                Log.Warn(steam.Message);
 
             if (GmodTools.Find("gmpublish.exe", binFolder) is not { } gmpublish)
             {
