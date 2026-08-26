@@ -8,7 +8,7 @@ ship and which item it would go to, without touching Steam or the network.
 
 ## Status
 
-**Phase 1 built.** The inspection, staging, validation and decision code is written and tested, and
+**Phases 1 and 2 built.** The inspection, staging, validation and decision code is written and tested, and
 so is the settings window that binds a map to an item — Compile Pal shows it as a **Workshop** button
 on the step. The lookup has been exercised against a live Workshop item; the staging and packing path
 has been exercised against Garry's Mod's own `gmad.exe`.
@@ -17,9 +17,9 @@ What has not happened yet is a real publish against a real item — see
 [Before the first real publish](#before-the-first-real-publish). Until that is done, run it as a dry
 run and publish by hand.
 
-The host changes phase 1 depends on live in the [Compile Pal fork](https://github.com/catualus/CompilePal)
-on the `workshop-plugin-support` branch: a `Configure` command in `meta.json`, and `COMPILE_PAL_ERRORS`
-on every step's process.
+The host changes these depend on live in the [Compile Pal fork](https://github.com/catualus/CompilePal)
+on the `workshop-plugin-support` branch: a `Configure` command and a `MapStatus` command in
+`meta.json`, and `COMPILE_PAL_ERRORS` on every step's process.
 
 ## The interface, decided
 
@@ -40,8 +40,8 @@ The plan, settled 2026-08-26:
   parameters, a `Configure` command that launches a plugin's own window, a per-map status command
   whose result is shown as a chip on the queue row, and `COMPILE_PAL_ERRORS` on the child process.
 - **An unbound map stops a publishing run before it starts**, at a confirmation listing exactly which
-  items will be replaced and how many people are subscribed to them. A plugin can only fail its own
-  step, which is an hour of compiling too late — so this one needs the host.
+  items will be replaced. A plugin can only fail its own step, which is an hour of compiling too late
+  — so this one needs the host.
 
 ## Why this is Garry's Mod only
 

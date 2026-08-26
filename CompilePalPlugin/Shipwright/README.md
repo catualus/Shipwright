@@ -44,6 +44,21 @@ Nothing is ever matched by title. Before overwriting anything, the step asks Ste
 the bound ID actually is and prints the title, so the name of the map you are about to replace is in
 the log whether or not you opened the window.
 
+## What the queue tells you
+
+Each queued map's card shows what Shipwright will do to it, before anything is compiled:
+
+| Chip | Means |
+|---|---|
+| *the item's title* | Bound. A publishing run replaces that item. |
+| **will create a new item** | Not bound, and creating one is allowed. |
+| **not bound** (red) | Not bound, creating is not allowed, and the step is set to publish. **The compile will not start.** |
+| **not bound** (grey) | Not bound, but nothing would be published anyway. |
+
+Pressing Compile with anything to confirm shows one dialog listing exactly which items will be
+replaced. If a map is blocking, the dialog says so and the run does not start - which is the point:
+the alternative is compiling for an hour and then being told a text file was missing a number.
+
 ## The entity lump
 
 If you run the `ENTLUMP` step, your entities are in `mapname_l_0.lmp` beside the BSP and not in the
