@@ -57,8 +57,20 @@
     "Parameter": " -tags",
     "CanHaveValue": true,
     "Value": "",
-    "Description": "Up to two, comma separated, from: fun, roleplay, scenic, movie, realism, cartoon, water, comic, build. Anything else is dropped with a warning.",
-    "Warning": ""
+    "Description": "The Workshop tag for a new item. Add this parameter twice for two tags, which is Steam's limit. Only used when creating - an existing item's tags are changed on its Workshop page.",
+    "Warning": "",
+    "Options": [
+      "fun",
+      "roleplay",
+      "scenic",
+      "movie",
+      "realism",
+      "cartoon",
+      "water",
+      "comic",
+      "build"
+    ],
+    "CanBeUsedMoreThanOnce": true
   },
   {
     "Name": "Change note",
@@ -89,7 +101,13 @@
     "CanHaveValue": true,
     "Value": "5",
     "Description": "Refuse to update the same item again within this many minutes. Set to 0 to turn the check off.",
-    "Warning": ""
+    "Warning": "",
+    "Options": [
+      "0",
+      "5",
+      "15",
+      "60"
+    ]
   },
   {
     "Name": "Do not look the item up first",
