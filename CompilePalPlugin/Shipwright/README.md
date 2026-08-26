@@ -31,8 +31,11 @@ every compile.
 Select a map in the queue, expand the **Shipwright** step, and press **Workshop**. That window is
 where a map is bound to an item, three ways:
 
-- **Your maps** — everything this Steam account has published, listed by asking `gmpublish list`.
-  Needs Steam running and signed in.
+- **Your maps** — everything this Steam account has published, listed by asking `gmpublish list`,
+  filtered to items the Workshop records as maps. Needs Steam running and signed in. The filter reads
+  the addon's **type tag**, not its title, so a content pack called "… Map" stays out and a map called
+  anything else stays in — and it is only as right as whoever published the item. Untick **Only maps**
+  to see everything; when Steam cannot say which is which, nothing is hidden.
 - **Paste a link** — the item's page address from your browser, resolved to a title and a picture
   before it is bound. Works with Steam closed.
 - **New item** — the title, tags and icon a new item should be created with, checked as you pick them.
