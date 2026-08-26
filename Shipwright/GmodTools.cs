@@ -86,6 +86,62 @@ namespace Shipwright
             return Run(gmpublishPath, "gmpub", args);
         }
 
+        /// <summary>One Workshop item the signed-in account has published.</summary>
+        public sealed record PublishedItem(ulong Id, string Title);
+
+        /// <summary>
+        /// Everything the signed-in account has published, as gmpublish reports it.
+        ///
+        /// WHY THIS AND NOT STEAMWORKS
+        ///
+        /// The obvious way to list an account's items is to bind Steamworks, initialise as app 4000
+        /// and run a UGC query - a native dependency, an interface version to match against whatever
+        /// Steam ships, and a callback pump, all to ask a question the tool sitting in the game's bin
+        /// folder already answers. gmpublish has a "list" command, it runs through the same signed-in
+        /// client the upload does, and it needs nothing that is not already installed.
+        /// </summary>
+        public static (ToolResult Result, List<PublishedItem> Items) List(string gmpublishPath)
+        {
+            var result = Run(gmpublishPath, "gmpub", new[] { "list" }, quiet: true);
+
+            return (result, ParseList(result.Output));
+        }
+
+        /// <summary>
+        /// Reads the item list out of gmpublish's output.
+        ///
+        /// Tolerant on purpose. The format is not documented and not stable - it is a console tool's
+        /// human-readable output - so this looks for the two things every plausible shape of it has:
+        /// a Workshop id, and the rest of the line as a title. A line it cannot read is skipped
+        /// rather than guessed at, and the caller shows the raw output when nothing at all parsed.
+        /// </summary>
+        internal static List<PublishedItem> ParseList(string output)
+        {
+            var items = new List<PublishedItem>();
+            var seen = new HashSet<ulong>();
+
+            foreach (string line in output.Split('\n'))
+            {
+                var match = Regex.Match(line, @"(?<id>\d{6,20})");
+
+                if (!match.Success || !Sanitize.IsWorkshopId(match.Groups["id"].Value, out ulong id))
+                    continue;
+
+                // The banner carries a build date, and a date is a run of digits too.
+                if (line.Contains("Compiled", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string title = Sanitize.Title(
+                    line.Remove(match.Index, match.Length)
+                        .Trim(' ', '\t', '\r', '-', ':', '|', '.', '\"', '\\'));
+
+                if (seen.Add(id))
+                    items.Add(new PublishedItem(id, title));
+            }
+
+            return items;
+        }
+
         /// <summary>Creates a new item. The icon is required; gmpublish fails with (9) without one.</summary>
         public static ToolResult Create(string gmpublishPath, string gmaPath, string iconPath)
         {
@@ -135,14 +191,23 @@ namespace Shipwright
         /// beside itself, and started from anywhere else it fails to initialise Steam with a message
         /// that says nothing about the working directory.
         /// </summary>
-        private static ToolResult Run(string exePath, string logPrefix, IEnumerable<string> arguments)
+        private static ToolResult Run(string exePath, string logPrefix, IEnumerable<string> arguments, bool quiet = false)
         {
             var startInfo = new ProcessStartInfo
             {
                 FileName = exePath,
-                WorkingDirectory = Path.GetDirectoryName(exePath) ?? ".",
+                WorkingDirectory = SteamAppDirectory(exePath),
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+
+                /*
+                 * gmpublish ends with "Press any key to continue". With a console attached that is a
+                 * pause; with stdin redirected and then closed it reads end-of-file and exits. Without
+                 * this, a publish inside a compile step waits for a keypress nobody can give it -
+                 * the step hangs until the compile is cancelled.
+                 */
+                RedirectStandardInput = true,
+
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
@@ -154,24 +219,49 @@ namespace Shipwright
 
             using var process = new Process { StartInfo = startInfo };
 
-            process.OutputDataReceived += (_, e) => Capture(captured, logPrefix, e.Data);
-            process.ErrorDataReceived += (_, e) => Capture(captured, logPrefix, e.Data);
+            process.OutputDataReceived += (_, e) => Capture(captured, logPrefix, e.Data, quiet);
+            process.ErrorDataReceived += (_, e) => Capture(captured, logPrefix, e.Data, quiet);
 
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+            process.StandardInput.Close();
             process.WaitForExit();
 
             return new ToolResult(process.ExitCode, captured.ToString());
         }
 
-        private static void Capture(StringBuilder captured, string prefix, string? line)
+        /// <summary>
+        /// The folder gmpublish has to be run from.
+        ///
+        /// Steamworks decides which application it is initialising from steam_appid.txt in the
+        /// working directory, and Garry's Mod keeps that file in its root rather than beside the
+        /// tools in bin. Run from bin, gmpublish has no app id to claim.
+        ///
+        /// Walks up from the executable looking for it, and falls back to the executable's own
+        /// folder - which is what this used to do unconditionally.
+        /// </summary>
+        internal static string SteamAppDirectory(string exePath)
+        {
+            var directory = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(exePath)) ?? ".");
+            var start = directory;
+
+            for (int levels = 0; directory != null && levels < 4; levels++, directory = directory.Parent)
+                if (File.Exists(Path.Combine(directory.FullName, "steam_appid.txt")))
+                    return directory.FullName;
+
+            return start.FullName;
+        }
+
+        private static void Capture(StringBuilder captured, string prefix, string? line, bool quiet = false)
         {
             if (line is null)
                 return;
 
             captured.AppendLine(line);
-            Log.FromChild(prefix, line);
+
+            if (!quiet)
+                Log.FromChild(prefix, line);
         }
     }
 }

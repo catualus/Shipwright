@@ -35,6 +35,10 @@ namespace Shipwright.Ui
 
         private ItemDetails? lookedUp;
         private ulong lookedUpId;
+        private bool mineLoaded;
+
+        /// <summary>A blank line inside a message box.</summary>
+        private static readonly string NewLines = Environment.NewLine + Environment.NewLine;
 
         public BindingWindow(UiOptions options)
         {
@@ -149,6 +153,78 @@ namespace Shipwright.Ui
                 : $"{id} · never published from this machine";
         }
 
+        /// <summary>
+        /// Loads what this account has published, the first time that tab is looked at.
+        ///
+        /// Not on window open: it starts gmpublish, which talks to Steam, and someone who came here
+        /// to paste a link should not wait for that - or watch it fail - on their way to a tab that
+        /// needs neither.
+        /// </summary>
+        private async void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (mineLoaded || !MineTab.IsSelected)
+                return;
+
+            mineLoaded = true;
+            await LoadMineAsync();
+        }
+
+        private async void RefreshMineButton_Click(object sender, RoutedEventArgs e) => await LoadMineAsync();
+
+        private async Task LoadMineAsync()
+        {
+            RefreshMineButton.IsEnabled = false;
+            MineList.ItemsSource = null;
+            MineMessage.Text = "Asking Steam...";
+
+            try
+            {
+                var steam = await Task.Run(SteamState.Check);
+
+                if (!steam.CanPublish)
+                {
+                    // Worth spelling out here. gmpublish reports every one of these the same way -
+                    // "Couldn't initialize Steam! Make sure it is running!" - including the case
+                    // where it is running, is signed in, and only its registration is stale.
+                    MineMessage.Text = steam.Message + " You can still bind by pasting a link.";
+                    return;
+                }
+
+                if (GmodTools.Find("gmpublish.exe", options.BinFolder) is not { } gmpublish)
+                {
+                    MineMessage.Text = "gmpublish.exe was not found in Garry's Mod's bin folder.";
+                    return;
+                }
+
+                var (result, items) = await Task.Run(() => GmodTools.List(gmpublish));
+
+                if (!result.Ok)
+                {
+                    MineMessage.Text = $"gmpublish could not list your items (exit code {result.ExitCode}).";
+                    return;
+                }
+
+                MineList.ItemsSource = items;
+
+                MineMessage.Text = items.Count switch
+                {
+                    0 => "This account has published nothing yet.",
+                    1 => "1 published item.",
+                    _ => $"{items.Count} published items.",
+                };
+            }
+            finally
+            {
+                RefreshMineButton.IsEnabled = true;
+            }
+        }
+
+        private void BindMineButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is GmodTools.PublishedItem item)
+                BindTo(item.Id, item.Title);
+        }
+
         private async void LookUpButton_Click(object sender, RoutedEventArgs e)
         {
             LookUpMessage.Visibility = Visibility.Collapsed;
@@ -259,24 +335,36 @@ namespace Shipwright.Ui
 
         private void BindButton_Click(object sender, RoutedEventArgs e)
         {
-            if (lookedUp is not { } details)
-                return;
+            if (lookedUp is { } details)
+                BindTo(lookedUpId, details.Title);
+        }
+
+        /// <summary>
+        /// Points this map at an item, once someone has confirmed which item that is.
+        ///
+        /// The confirmation names the item rather than asking "are you sure", because the mistake it
+        /// guards against is not carelessness - it is picking the row above the one you meant, which
+        /// looks exactly like success until a compile replaces the wrong map.
+        /// </summary>
+        private void BindTo(ulong id, string title)
+        {
+            string name = title.Length > 0 ? title : id.ToString();
 
             var confirm = MessageBox.Show(
-                $"Publishing {options.MapName} will replace:\n\n{details.Title}\n\n" +
+                $"Publishing {options.MapName} will replace:{NewLines}{name}{NewLines}" +
                 "on the Workshop, for everyone subscribed to it. Bind it?",
                 "Workshop target", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
 
             if (confirm != MessageBoxResult.OK)
                 return;
 
-            state.WorkshopId = lookedUpId.ToString();
-            state.Title = details.Title;
+            state.WorkshopId = id.ToString();
+            state.Title = title;
 
             /*
              * The hash of what was published last time belongs to the item that was published to.
-             * Carrying it across to a different item would make the first publish look like a
-             * repeat of one that never happened, and skip it.
+             * Carrying it across to a different item would make the first publish look like a repeat
+             * of one that never happened, and skip it.
              */
             state.GmaSha256 = null;
             state.LastPublished = null;
@@ -284,7 +372,7 @@ namespace Shipwright.Ui
             if (Save())
             {
                 ShowBinding();
-                StatusText.Text = $"Bound to {details.Title}.";
+                StatusText.Text = $"Bound to {name}.";
             }
         }
 

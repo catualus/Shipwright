@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!--
+      Windows, and not by accident. This drives gmad and gmpublish, reads a Source engine BSP and
+      asks the Steam client on this machine what state it is in - the last of which needs the
+      registry, which is in-box on this framework and a package on the portable one.
+    -->
+    <TargetFramework>net10.0-windows</TargetFramework>
 
     <!--
       Shipwright.Core, not Shipwright: the executable produced by ShipwrightCli is called

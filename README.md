@@ -8,7 +8,7 @@ ship and which item it would go to, without touching Steam or the network.
 
 ## Status
 
-**Phases 1 and 2 built.** The inspection, staging, validation and decision code is written and tested, and
+**Phases 1 to 3 built.** The inspection, staging, validation and decision code is written and tested, and
 so is the settings window that binds a map to an item — Compile Pal shows it as a **Workshop** button
 on the step. The lookup has been exercised against a live Workshop item; the staging and packing path
 has been exercised against Garry's Mod's own `gmad.exe`.
@@ -33,9 +33,9 @@ The plan, settled 2026-08-26:
 - **Two binaries in the plugin folder.** `shipwright.exe` stays an ordinary console program run as
   the compile step; `shipwright-ui.exe` is a window that picks or creates the item and writes the
   state file. Nothing is uploaded from that window.
-- **The picker has three tiers** — the account's published items through Steamworks, a pasted
-  Workshop link resolved through the keyless public API, and the bindings this machine has made
-  before. The lower two work with Steam closed.
+- **The picker has three tabs** — the account's published items (from `gmpublish list`, which turned
+  out to exist and made a Steamworks binding unnecessary), a pasted Workshop link resolved through
+  the keyless public API, and a new item's title, tags and icon. The last two work with Steam closed.
 - **Compile Pal grows four small things**, none of which teach it what a Workshop item is: dropdown
   parameters, a `Configure` command that launches a plugin's own window, a per-map status command
   whose result is shown as a chip on the queue row, and `COMPILE_PAL_ERRORS` on the child process.

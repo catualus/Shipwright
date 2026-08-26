@@ -29,8 +29,15 @@ every compile.
 ## Which item it publishes to
 
 Select a map in the queue, expand the **Shipwright** step, and press **Workshop**. That window is
-where a map is bound to an item — paste the item's page address, see its title and picture, and bind
-it. Nothing in that window uploads anything.
+where a map is bound to an item, three ways:
+
+- **Your maps** — everything this Steam account has published, listed by asking `gmpublish list`.
+  Needs Steam running and signed in.
+- **Paste a link** — the item's page address from your browser, resolved to a title and a picture
+  before it is bound. Works with Steam closed.
+- **New item** — the title, tags and icon a new item should be created with, checked as you pick them.
+
+Nothing in that window uploads anything.
 
 The answer is stored in `<mapname>.workshop.json` next to your `.vmf`, along with the title and tags
 a new item should be created with, when it was last published, the map revision, and a hash of what
@@ -91,7 +98,10 @@ Your `.vmf` is never in there, and neither is any other map in your maps folder.
 
 ## Requirements
 
-- Steam running, signed in as the account that owns the item.
+- Steam running, signed in as the account that owns the item. If Steam is running and signed in and
+  publishing still fails, Shipwright says whether the problem is Steam's own registration going stale
+  — restarting Steam fixes that one, and gmpublish's own message ("Couldn't initialize Steam!") does
+  not tell you so.
 - Garry's Mod installed — `gmad.exe` and `gmpublish.exe` come from its `bin` folder.
 - For a new item, a 512x512 baseline JPEG icon with 4:2:0 chroma. The **Workshop** window checks one
   as soon as you pick it; `shipwright check-icon your.jpg` says the same thing from a terminal.

@@ -35,6 +35,9 @@ namespace Shipwright
                     case "status":
                         return Status(args);
 
+                    case "list":
+                        return ListItems(args);
+
                     case "-h":
                     case "--help":
                     case "help":
@@ -132,6 +135,63 @@ namespace Shipwright
             return 0;
         }
 
+        /// <summary>
+        /// Lists what the signed-in account has published, the way the settings window sees it.
+        ///
+        /// Here as well as in the window because this is the half that talks to Steam, and when it
+        /// comes back empty the question is always whether the account has no items or whether
+        /// something between here and Steam is wrong. From a terminal that is one command; through a
+        /// window it is a bug report.
+        /// </summary>
+        private static int ListItems(string[] args)
+        {
+            string binFolder = "";
+
+            for (int i = 1; i < args.Length - 1; i++)
+                if (string.Equals(args[i], "-bin", StringComparison.OrdinalIgnoreCase))
+                    binFolder = args[i + 1];
+
+            var steam = SteamState.Check();
+
+            if (!steam.CanPublish)
+            {
+                Log.Error(steam.Message);
+                return 1;
+            }
+
+            if (GmodTools.Find("gmpublish.exe", binFolder) is not { } gmpublish)
+            {
+                Log.Error($"gmpublish.exe was not found near {binFolder}. Pass -bin <Garry's Mod bin folder>.");
+                return 1;
+            }
+
+            var (result, items) = GmodTools.List(gmpublish);
+
+            if (!result.Ok)
+            {
+                Log.Error($"gmpublish list failed with exit code {result.ExitCode}:");
+                foreach (string line in result.Output.Split('\n'))
+                    if (line.Trim().Length > 0)
+                        Log.FromChild("gmpub", line);
+                return 1;
+            }
+
+            if (items.Count == 0)
+            {
+                Log.Warn("gmpublish listed no items. Its output was:");
+                foreach (string line in result.Output.Split('\n'))
+                    if (line.Trim().Length > 0)
+                        Log.FromChild("gmpub", line);
+                return 0;
+            }
+
+            foreach (var item in items)
+                Log.Out($"{item.Id,-12} {item.Title}");
+
+            Log.Check($"{items.Count} item(s).");
+            return 0;
+        }
+
         private static int CheckIcon(string[] args)
         {
             if (args.Length < 2)
@@ -159,6 +219,7 @@ namespace Shipwright
             Log.Line("  shipwright publish <map.bsp> [options]");
             Log.Line("  shipwright inspect <map.bsp> [-vmf <path>] [-state <path>]");
             Log.Line("  shipwright status <map.bsp> [-vmf <path>]          one line of JSON, for a queue row");
+            Log.Line("  shipwright list -bin <Garry's Mod bin folder>   what this account has published");
             Log.Line("  shipwright check-icon <icon.jpg>");
             Log.Line();
             Log.Line("Publishing is off by default. Without -publish the run builds the addon, says exactly");

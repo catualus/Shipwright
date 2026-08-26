@@ -30,9 +30,44 @@
       </StackPanel>
     </Border>
 
-    <TabControl Grid.Row="2" Margin="0,12,0,0" Background="Transparent" BorderThickness="0">
+    <TabControl Grid.Row="2" Margin="0,12,0,0" Background="Transparent" BorderThickness="0"
+                SelectionChanged="Tabs_SelectionChanged">
 
-      <TabItem Header="Existing item">
+      <TabItem Header="Your maps" x:Name="MineTab">
+        <Grid Margin="0,12,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <TextBlock Grid.Row="0" Text="Everything this Steam account has published for Garry's Mod."/>
+
+          <DockPanel Grid.Row="1" Margin="0,8,0,0">
+            <Button DockPanel.Dock="Right" x:Name="RefreshMineButton" Content="Refresh" Click="RefreshMineButton_Click"/>
+            <TextBlock x:Name="MineMessage" Style="{StaticResource Soft}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+          </DockPanel>
+
+          <ListBox Grid.Row="2" x:Name="MineList" Margin="0,10,0,0" BorderThickness="1"
+                   Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   HorizontalContentAlignment="Stretch">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <DockPanel Margin="2,4">
+                  <Button DockPanel.Dock="Right" Content="Bind" Tag="{Binding}" Click="BindMineButton_Click"/>
+                  <StackPanel Margin="0,0,10,0">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Id}" Style="{StaticResource Mono}"/>
+                  </StackPanel>
+                </DockPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Paste a link">
         <StackPanel Margin="0,12,0,0">
           <TextBlock Text="Paste the item's page address, or its ID."/>
           <TextBlock Style="{StaticResource Soft}" Margin="0,2,0,0"

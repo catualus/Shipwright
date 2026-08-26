@@ -169,10 +169,17 @@ namespace Shipwright
                 return Ok;
             }
 
-            if (!SteamState.SteamRunning())
+            var steam = SteamState.Check();
+
+            if (!steam.CanPublish)
             {
-                Log.Error("Steam is not running. gmpublish uploads through the signed-in Steam client, " +
-                          "so start Steam and run the step again.");
+                /*
+                 * Said here rather than left to gmpublish, which reports every one of these the same
+                 * way - "Couldn't initialize Steam! Make sure it is running!" - including the case
+                 * where Steam is running, is signed in, and the only thing wrong is that its own
+                 * registration points at a process that has exited.
+                 */
+                Log.Error(steam.Message);
                 return Failed;
             }
 
