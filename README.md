@@ -13,6 +13,28 @@ not happened yet is a real publish against a real Workshop item — see
 [Before the first real publish](#before-the-first-real-publish). Until that is done, run it as a dry
 run and publish by hand.
 
+## The interface, decided
+
+Typing a Workshop ID into a compile parameter is not the interface. It is also unsafe in a specific
+way: Compile Pal parameters live in a **preset**, and a preset applies to every map in the queue, so
+one ID would send every queued map to the same item. The target belongs to the map, which is why it
+lives in `<mapname>.workshop.json`.
+
+The plan, settled 2026-08-26:
+
+- **Two binaries in the plugin folder.** `shipwright.exe` stays an ordinary console program run as
+  the compile step; `shipwright-ui.exe` is a window that picks or creates the item and writes the
+  state file. Nothing is uploaded from that window.
+- **The picker has three tiers** — the account's published items through Steamworks, a pasted
+  Workshop link resolved through the keyless public API, and the bindings this machine has made
+  before. The lower two work with Steam closed.
+- **Compile Pal grows four small things**, none of which teach it what a Workshop item is: dropdown
+  parameters, a `Configure` command that launches a plugin's own window, a per-map status command
+  whose result is shown as a chip on the queue row, and `COMPILE_PAL_ERRORS` on the child process.
+- **An unbound map stops a publishing run before it starts**, at a confirmation listing exactly which
+  items will be replaced and how many people are subscribed to them. A plugin can only fail its own
+  step, which is an hour of compiling too late — so this one needs the host.
+
 ## Why this is Garry's Mod only
 
 It is the only Source game whose Workshop can be published to from a command line. `gmad.exe` and
