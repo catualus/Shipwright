@@ -36,6 +36,8 @@ namespace Shipwright.Ui
         private ItemDetails? lookedUp;
         private ulong lookedUpId;
         private bool mineLoaded;
+        private List<ListedItem> mine = new();
+        private bool typesKnown;
 
         /// <summary>A blank line inside a message box.</summary>
         private static readonly string NewLines = Environment.NewLine + Environment.NewLine;
@@ -200,14 +202,35 @@ namespace Shipwright.Ui
                     return;
                 }
 
-                MineList.ItemsSource = items;
+                /*
+                 * gmpublish knows nothing about what kind of addon each item is - only its id, size
+                 * and title. The type is a Workshop tag, so it comes from the same keyless endpoint
+                 * that resolves a pasted link, in one batched request for the whole list.
+                 *
+                 * Awaited rather than skipped: for anyone with a server community's Workshop, "only
+                 * maps" is the difference between two rows and forty.
+                 */
+                var details = await Task.Run(() =>
+                    WorkshopLookup.DescribeMany(items.Select(i => i.Id), TimeSpan.FromSeconds(12)));
 
-                MineMessage.Text = items.Count switch
+                var byId = details.ToDictionary(d => d.Id);
+
+                typesKnown = details.Count > 0;
+
+                mine = items.Select(item =>
                 {
-                    0 => "This account has published nothing yet.",
-                    1 => "1 published item.",
-                    _ => $"{items.Count} published items.",
-                };
+                    bool isMap = byId.TryGetValue(item.Id, out var found) && found.IsMap;
+
+                    string when = byId.TryGetValue(item.Id, out var d) && d.Updated is { } updated
+                        ? $"  ·  updated {updated.ToLocalTime():yyyy-MM-dd}"
+                        : "";
+
+                    return new ListedItem(item.Id, item.Title, isMap, (isMap ? "  ·  map" : "") + when);
+                }).ToList();
+
+                OnlyMapsBox.IsEnabled = typesKnown;
+
+                ShowMine(items.Count);
             }
             finally
             {
@@ -215,9 +238,44 @@ namespace Shipwright.Ui
             }
         }
 
+        private void OnlyMapsBox_Click(object sender, RoutedEventArgs e) => ShowMine(mine.Count);
+
+        /// <summary>
+        /// Puts the list on screen, filtered to maps unless asked otherwise.
+        ///
+        /// Filtering on the tag rather than the title, because in a server community's Workshop half
+        /// the items are called "... Map" and are content packs, while the map itself may be called
+        /// anything. When the types could not be fetched nothing is hidden - a filter that silently
+        /// removes the item someone is looking for is worse than a long list.
+        /// </summary>
+        private void ShowMine(int total)
+        {
+            bool onlyMaps = typesKnown && OnlyMapsBox.IsChecked == true;
+
+            var shown = onlyMaps ? mine.Where(i => i.IsMap).ToList() : mine;
+
+            MineList.ItemsSource = shown;
+
+            if (total == 0)
+            {
+                MineMessage.Text = "This account has published nothing yet.";
+                return;
+            }
+
+            if (!typesKnown)
+            {
+                MineMessage.Text = $"{total} published items. Steam did not say which are maps, so all are listed.";
+                return;
+            }
+
+            MineMessage.Text = onlyMaps
+                ? $"{shown.Count} of {total} published items are maps."
+                : $"{total} published items.";
+        }
+
         private void BindMineButton_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as FrameworkElement)?.Tag is GmodTools.PublishedItem item)
+            if ((sender as FrameworkElement)?.Tag is ListedItem item)
                 BindTo(item.Id, item.Title);
         }
 

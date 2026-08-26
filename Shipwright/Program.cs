@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Shipwright
@@ -37,6 +38,9 @@ namespace Shipwright
 
                     case "list":
                         return ListItems(args);
+
+                    case "describe":
+                        return Describe(args);
 
                     case "-h":
                     case "--help":
@@ -187,6 +191,42 @@ namespace Shipwright
             return 0;
         }
 
+        /// <summary>
+        /// Says what Steam publicly knows about one or more items: title, app, and the tags that
+        /// record what kind of addon each one is.
+        ///
+        /// The settings window uses the same lookup to tell maps from content packs. Having it as a
+        /// command is what makes "why is my map not in the list" answerable without a window.
+        /// </summary>
+        private static int Describe(string[] args)
+        {
+            var ids = new List<ulong>();
+
+            for (int i = 1; i < args.Length; i++)
+                if (WorkshopLink.TryParse(args[i], out ulong id))
+                    ids.Add(id);
+
+            if (ids.Count == 0)
+            {
+                Log.Error("describe takes one or more Workshop IDs or addresses.");
+                return 1;
+            }
+
+            var details = WorkshopLookup.DescribeMany(ids, TimeSpan.FromSeconds(15));
+
+            if (details.Count == 0)
+            {
+                Log.Warn("Steam described none of them. Offline, or none of those IDs is public.");
+                return 1;
+            }
+
+            foreach (var item in details)
+                Log.Out($"{item.Id,-12} {(item.IsMap ? "map " : "    ")} {item.Title}" +
+                        (item.Tags is { Count: > 0 } tags ? $"   [{string.Join(", ", tags)}]" : ""));
+
+            return 0;
+        }
+
         private static int CheckIcon(string[] args)
         {
             if (args.Length < 2)
@@ -215,6 +255,7 @@ namespace Shipwright
             Log.Line("  shipwright inspect <map.bsp> [-vmf <path>] [-state <path>]");
             Log.Line("  shipwright status <map.bsp> [-vmf <path>]          one line of JSON, for a queue row");
             Log.Line("  shipwright list -bin <Garry's Mod bin folder>   what this account has published");
+            Log.Line("  shipwright describe <id|url>...                 what Steam says about an item");
             Log.Line("  shipwright check-icon <icon.jpg>");
             Log.Line();
             Log.Line("Publishing is off by default. Without -publish the run builds the addon, says exactly");

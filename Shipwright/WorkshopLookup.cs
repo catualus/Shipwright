@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -16,7 +17,21 @@ namespace Shipwright
         DateTimeOffset? Updated = null,
         long SizeBytes = 0,
         string PreviewUrl = "",
-        string Creator = "");
+        string Creator = "",
+        ulong Id = 0,
+        IReadOnlyList<string>? Tags = null)
+    {
+        /// <summary>
+        /// Whether this item is a map.
+        ///
+        /// Garry's Mod records an addon's type as a Workshop tag, so "Map" here is the same thing
+        /// the addon.json said when it was published. Tag rather than title: half the items in a
+        /// server community's Workshop are called "... Map" and are content packs, and the map
+        /// itself is often not called map at all.
+        /// </summary>
+        public bool IsMap =>
+            Tags?.Any(t => string.Equals(t, "Map", StringComparison.OrdinalIgnoreCase)) ?? false;
+    }
 
     /// <summary>
     /// Looks up a Workshop item before overwriting it.
@@ -46,6 +61,59 @@ namespace Shipwright
 
         /// <summary>Garry's Mod. An item belonging to any other app is not this tool's to touch.</summary>
         public const int GarrysModAppId = 4000;
+
+        /// <summary>
+        /// Describes several items in one request.
+        ///
+        /// The endpoint takes a count and a numbered list, so asking about ten items costs one round
+        /// trip rather than ten - which matters because this runs while somebody is looking at a
+        /// list waiting for it to become useful.
+        ///
+        /// Returns an empty list rather than throwing. Everything this adds is an improvement on the
+        /// list, not the list itself: with no network the items are all still there, just unsorted
+        /// into maps and everything else.
+        /// </summary>
+        public static IReadOnlyList<ItemDetails> DescribeMany(IEnumerable<ulong> ids, TimeSpan timeout)
+        {
+            var wanted = ids.Distinct().ToList();
+
+            if (wanted.Count == 0)
+                return Array.Empty<ItemDetails>();
+
+            try
+            {
+                return DescribeManyAsync(wanted, timeout).GetAwaiter().GetResult();
+            }
+            catch (Exception)
+            {
+                return Array.Empty<ItemDetails>();
+            }
+        }
+
+        private static async Task<IReadOnlyList<ItemDetails>> DescribeManyAsync(
+            IReadOnlyList<ulong> ids, TimeSpan timeout)
+        {
+            using var client = new HttpClient { Timeout = timeout };
+            using var cancel = new CancellationTokenSource(timeout);
+
+            var fields = new List<KeyValuePair<string, string>>
+            {
+                new("itemcount", ids.Count.ToString()),
+            };
+
+            for (int i = 0; i < ids.Count; i++)
+                fields.Add(new KeyValuePair<string, string>($"publishedfileids[{i}]", ids[i].ToString()));
+
+            using var response = await client.PostAsync(Endpoint, new FormUrlEncodedContent(fields), cancel.Token)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+                return Array.Empty<ItemDetails>();
+
+            string body = await response.Content.ReadAsStringAsync(cancel.Token).ConfigureAwait(false);
+
+            return ParseAll(body);
+        }
 
         public static ItemDetails Describe(ulong id, TimeSpan timeout)
         {
@@ -92,6 +160,24 @@ namespace Shipwright
         /// Separated from the request so it can be tested against the shapes this endpoint actually
         /// returns, which is not the shape its field names suggest - see <see cref="Number"/>.
         /// </summary>
+        /// <summary>Every item in a response, for the batched lookup.</summary>
+        internal static IReadOnlyList<ItemDetails> ParseAll(string body)
+        {
+            using var document = JsonDocument.Parse(body);
+
+            if (!document.RootElement.TryGetProperty("response", out var wrapper)
+                || !wrapper.TryGetProperty("publishedfiledetails", out var details))
+                return Array.Empty<ItemDetails>();
+
+            var all = new List<ItemDetails>();
+
+            foreach (var item in details.EnumerateArray())
+                if (ReadItem(item) is { Found: true } parsed)
+                    all.Add(parsed);
+
+            return all;
+        }
+
         internal static ItemDetails ParseResponse(string body)
         {
             using var document = JsonDocument.Parse(body);
@@ -101,9 +187,18 @@ namespace Shipwright
                 || details.GetArrayLength() == 0)
                 return new ItemDetails(false, "lookup returned nothing for that ID.");
 
-            var item = details[0];
+            return ReadItem(details[0]);
+        }
 
-            // result 1 is success. Anything else means the ID names nothing the public API will
+        /// <summary>
+        /// One item out of a details response.
+        ///
+        /// Everything is optional: this is somebody else's JSON, the fields it carries have changed
+        /// over the years, and a missing size or date is not a reason to report an item as missing.
+        /// </summary>
+        private static ItemDetails ReadItem(JsonElement item)
+        {
+            // result 1 is success. Anything else means the id names nothing the public API will
             // describe - deleted, hidden, or never existed.
             if (Number(item, "result") is { } outcome && outcome != 1)
                 return new ItemDetails(false, "no public item has that ID. It may be deleted, or private.");
@@ -111,6 +206,7 @@ namespace Shipwright
             string title = item.TryGetProperty("title", out var t) ? (t.GetString() ?? "") : "";
             int appId = (int)(Number(item, "consumer_app_id") ?? 0);
             long size = Number(item, "file_size") ?? 0;
+            ulong id = (ulong)(Number(item, "publishedfileid") ?? 0);
 
             DateTimeOffset? updated = null;
             if (Number(item, "time_updated") is { } epoch && epoch > 0)
@@ -129,7 +225,36 @@ namespace Shipwright
             string creator = item.TryGetProperty("creator", out var c) ? (c.GetString() ?? "") : "";
 
             return new ItemDetails(true, "found.", Sanitize.Title(title), appId, updated, size,
-                SafePreviewUrl(preview), creator);
+                SafePreviewUrl(preview), creator, id, ReadTags(item));
+        }
+
+        /// <summary>
+        /// The item's tags, which is where Garry's Mod records what kind of addon it is.
+        ///
+        /// They arrive as objects rather than strings - [{"tag":"Map"}] - and an item that has none
+        /// simply has none.
+        /// </summary>
+        private static IReadOnlyList<string> ReadTags(JsonElement item)
+        {
+            if (!item.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Array)
+                return Array.Empty<string>();
+
+            var read = new List<string>();
+
+            foreach (var entry in tags.EnumerateArray())
+            {
+                string? value = entry.ValueKind switch
+                {
+                    JsonValueKind.String => entry.GetString(),
+                    JsonValueKind.Object when entry.TryGetProperty("tag", out var tag) => tag.GetString(),
+                    _ => null,
+                };
+
+                if (!string.IsNullOrWhiteSpace(value))
+                    read.Add(Sanitize.DisplayText(value, 40));
+            }
+
+            return read;
         }
 
         /// <summary>
