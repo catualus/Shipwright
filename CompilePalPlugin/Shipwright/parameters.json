@@ -1,0 +1,106 @@
+[
+  {
+    "Name": "Actually publish",
+    "Parameter": " -publish",
+    "Description": "Upload. Without this the step builds the addon, prints every file that would go into it and which Workshop item it would go to, and stops without touching Steam.",
+    "Warning": "A Workshop update reaches every subscriber and every server within minutes, and there is no undo."
+  },
+  {
+    "Name": "Allow creating a new item",
+    "Parameter": " -allowcreate",
+    "Description": "When no Workshop item is bound to this map, create one and record its ID beside the map. Without this, an unbound map is skipped rather than published somewhere new.",
+    "Warning": "Needs an icon. A new item is created on the Steam account this machine is signed in as."
+  },
+  {
+    "Name": "Workshop item",
+    "Parameter": " -id",
+    "CanHaveValue": true,
+    "Value": "",
+    "Description": "Publish to this item ID, ignoring the ID recorded beside the map. The ID is the number at the end of the item's Workshop URL.",
+    "Warning": "The wrong number here replaces a different map, for everyone subscribed to it."
+  },
+  {
+    "Name": "Icon",
+    "Parameter": " -icon",
+    "CanHaveValue": true,
+    "ValueIsFile": true,
+    "Value": "",
+    "Description": "The item's icon: a 512x512 baseline JPEG with 4:2:0 chroma, which is what gmpublish accepts. Only needed when creating a new item. Checked before anything is uploaded.",
+    "Warning": ""
+  },
+  {
+    "Name": "Include the entity lump",
+    "Parameter": " -includelump",
+    "Description": "Ship the .lmp beside the map, so the published version plays on its own. Off by default: the whole point of publishing a stripped map is that the copy clients download has no entities in it to decompile, and a server they join sends them the entities anyway.",
+    "Warning": "Included, the entity lump is in the addon and anyone who subscribes has it."
+  },
+  {
+    "Name": "Include the nav mesh",
+    "Parameter": " -includenav",
+    "Description": "Ship the .nav beside the map, so subscribers get bot navigation without generating it themselves."
+  },
+  {
+    "Name": "Include the AI node graph",
+    "Parameter": " -includeain",
+    "Description": "Ship the .ain from the graphs folder, so NPCs navigate without the map building one on first load."
+  },
+  {
+    "Name": "Title",
+    "Parameter": " -title",
+    "CanHaveValue": true,
+    "Value": "",
+    "Description": "Title for a new item. Defaults to the map's file name. Quote it if it has spaces. Only used when creating - the title of an existing item is changed on its Workshop page.",
+    "Warning": ""
+  },
+  {
+    "Name": "Tags",
+    "Parameter": " -tags",
+    "CanHaveValue": true,
+    "Value": "",
+    "Description": "Up to two, comma separated, from: fun, roleplay, scenic, movie, realism, cartoon, water, comic, build. Anything else is dropped with a warning.",
+    "Warning": ""
+  },
+  {
+    "Name": "Change note",
+    "Parameter": " -changes",
+    "CanHaveValue": true,
+    "Value": "",
+    "Description": "The change note for an update, shown on the item's changelog. Quote it if it has spaces. Reduced to plain US-ASCII before it is used, which is what gmpublish accepts.",
+    "Warning": ""
+  },
+  {
+    "Name": "Change note from a file",
+    "Parameter": " -changesfile",
+    "CanHaveValue": true,
+    "ValueIsFile": true,
+    "Value": "",
+    "Description": "Read the change note from a text file instead, which is the way to write one longer than a line.",
+    "Warning": ""
+  },
+  {
+    "Name": "Publish even if nothing changed",
+    "Parameter": " -force",
+    "Description": "Upload even when the packed addon is byte for byte the one published last time, and even if the last publish was minutes ago.",
+    "Warning": "Every subscriber and every server redownloads the addon for an update that contains nothing new."
+  },
+  {
+    "Name": "Minimum minutes between publishes",
+    "Parameter": " -mininterval",
+    "CanHaveValue": true,
+    "Value": "5",
+    "Description": "Refuse to update the same item again within this many minutes. Set to 0 to turn the check off.",
+    "Warning": ""
+  },
+  {
+    "Name": "Do not look the item up first",
+    "Parameter": " -offline",
+    "Description": "Skip asking Steam's public API what the item being updated actually is. The lookup needs no account and no key, and it is what shows you the title of the item you are about to overwrite.",
+    "Warning": "Without it, a wrong ID is only discovered after the upload."
+  },
+  {
+    "Name": "Keep the staging folder",
+    "Parameter": " -keepstaging",
+    "Description": "Leave the temporary folder that was packed, so you can see exactly what went into the addon.",
+    "Warning": ""
+  }
+]

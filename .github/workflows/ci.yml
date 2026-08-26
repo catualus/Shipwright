@@ -1,0 +1,56 @@
+# Build and test on every push and pull request.
+#
+# Windows only, and deliberately. Shipwright drives gmad and gmpublish, which ship with Garry's Mod
+# on Windows, and it installs as a Compile Pal plugin. A Linux job would test path handling that
+# nothing depends on.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Shipwright.slnx
+
+      # Warnings are errors here and nowhere else. The build is clean, so anything new is worth
+      # stopping for, and keeping it out of the csproj means a warning does not block someone
+      # mid-change on their own machine.
+      - name: Build
+        run: dotnet build Shipwright.slnx --configuration Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test Shipwright.slnx --configuration Release --no-build
+
+      # The release publishes self-contained and single-file, which is a different compile from the
+      # one above and can fail on its own. Better to find that here than when cutting a tag.
+      - name: Check the release publish still works
+        run: ./build-plugin.ps1
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: shipwright-${{ github.sha }}
+          path: artifacts/Shipwright/
+          retention-days: 14

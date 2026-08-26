@@ -1,0 +1,19 @@
+{
+  "Name": "Shipwright",
+  "Path": "Plugins\\Shipwright\\shipwright.exe",
+  "IsExternal": true,
+  "Arguments": "publish $mapCopyLocation$",
+  "Order": 12.5,
+  "DoRun": false,
+  "ReadOutput": true,
+  "Description": "Packs the compiled map as a Garry's Mod Workshop addon and updates the item it is bound to, or creates one. Without the entity lump, so the published map cannot be decompiled.",
+  "Warning": "Publishing is public and cannot be undone. Until \"Actually publish\" is enabled this only says what it would upload.",
+  "PresetDefault": false,
+  "CheckExitCode": true,
+  "BasisString": " -bin $binFolder$ -vmf $vmfFile$ -gamename $gameName$",
+  "SupportsBSP": true,
+  "CompatibleGames": [
+    4000
+  ],
+  "WorkingDirectory": null
+}

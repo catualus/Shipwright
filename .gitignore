@@ -1,0 +1,21 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Maps and addons produced or consumed while testing. Large, and the maps are not ours to
+# redistribute. A .gma is a map with a header on it, so the same applies.
+*.bsp
+*.lmp
+*.gma
+
+# Plugin packaging output, produced by build-plugin.ps1. The plugin's own meta.json and
+# parameters.json live in CompilePalPlugin/ and are tracked; this is only where they are assembled
+# with a published executable.
+artifacts/
+
+# Never. A publish binds to a Workshop item by ID, and the state files that record which item are
+# per-machine notes about someone's own maps.
+*.workshop.json
