@@ -171,11 +171,29 @@ namespace Shipwright
             return Sanitize.ChangeNote(raw);
         }
 
-        /// <summary>The title for a new item: what was asked for, or the map's own name.</summary>
-        public string ResolveTitle()
+        /// <summary>
+        /// The title for a new item: the parameter, then the map's own state file, then its name.
+        ///
+        /// That order, and not the other one. The parameter is the same string for every map in the
+        /// queue, so it is only ever set deliberately - by someone publishing one map, or driving
+        /// this from a script - and when it is set it should win. The state file is where the
+        /// settings window puts a title that belongs to one map.
+        /// </summary>
+        public string ResolveTitle(WorkshopState? state = null)
         {
             string asked = Sanitize.Title(Title);
-            return asked.Length > 0 ? asked : Path.GetFileNameWithoutExtension(BspPath);
+            if (asked.Length > 0)
+                return asked;
+
+            string stored = Sanitize.Title(state?.Title);
+            if (stored.Length > 0)
+                return stored;
+
+            return Path.GetFileNameWithoutExtension(BspPath);
         }
+
+        /// <summary>Tags from the parameter if any were given, otherwise the map's own.</summary>
+        public IEnumerable<string> ResolveTags(WorkshopState? state = null) =>
+            Tags.Count > 0 ? Tags : (state?.Tags ?? Array.Empty<string>());
     }
 }

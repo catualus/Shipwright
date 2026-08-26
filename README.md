@@ -8,10 +8,18 @@ ship and which item it would go to, without touching Steam or the network.
 
 ## Status
 
-**Scaffold.** The inspection, staging, validation and decision code is written and tested. What has
-not happened yet is a real publish against a real Workshop item — see
+**Phase 1 built.** The inspection, staging, validation and decision code is written and tested, and
+so is the settings window that binds a map to an item — Compile Pal shows it as a **Workshop** button
+on the step. The lookup has been exercised against a live Workshop item; the staging and packing path
+has been exercised against Garry's Mod's own `gmad.exe`.
+
+What has not happened yet is a real publish against a real item — see
 [Before the first real publish](#before-the-first-real-publish). Until that is done, run it as a dry
 run and publish by hand.
+
+The host changes phase 1 depends on live in the [Compile Pal fork](https://github.com/catualus/CompilePal)
+on the `workshop-plugin-support` branch: a `Configure` command in `meta.json`, and `COMPILE_PAL_ERRORS`
+on every step's process.
 
 ## The interface, decided
 
@@ -89,6 +97,7 @@ published one in the state file; it will not ship a `.lmp` whose revision does n
 |---|---|
 | `Shipwright/` | The library: everything real. |
 | `ShipwrightCli/` | The `shipwright.exe` entry point, four lines of it. |
+| `ShipwrightUi/` | `shipwright-ui.exe` — the WPF settings window Compile Pal opens. Binds, never uploads. |
 | `Shipwright.Tests/` | xUnit tests, fixtures synthesised rather than checked in. |
 | `CompilePalPlugin/Shipwright/` | `meta.json`, `parameters.json` and the plugin's own README. |
 | `build-plugin.ps1` | Publishes the executable and assembles `artifacts/Shipwright/`. |

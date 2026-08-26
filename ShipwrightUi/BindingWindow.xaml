@@ -1,0 +1,117 @@
+<Window x:Class="Shipwright.Ui.BindingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Workshop target" Height="640" Width="560"
+        MinHeight="560" MinWidth="480"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Ground}">
+
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Which map this is about. Named first, because the whole point of this window is that the
+         answer belongs to one map rather than to the preset. -->
+    <StackPanel Grid.Row="0">
+      <TextBlock Style="{StaticResource Heading}" Text="Workshop target"/>
+      <TextBlock x:Name="MapNameText" Style="{StaticResource Soft}" Margin="0,2,0,0"/>
+    </StackPanel>
+
+    <Border Grid.Row="1" Margin="0,12,0,0" CornerRadius="6" Padding="12"
+            Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Soft}" Text="Bound to"/>
+        <TextBlock x:Name="BoundTitleText" Margin="0,3,0,0" FontWeight="SemiBold"/>
+        <TextBlock x:Name="BoundDetailText" Style="{StaticResource Soft}" Margin="0,2,0,0"/>
+      </StackPanel>
+    </Border>
+
+    <TabControl Grid.Row="2" Margin="0,12,0,0" Background="Transparent" BorderThickness="0">
+
+      <TabItem Header="Existing item">
+        <StackPanel Margin="0,12,0,0">
+          <TextBlock Text="Paste the item's page address, or its ID."/>
+          <TextBlock Style="{StaticResource Soft}" Margin="0,2,0,0"
+                     Text="Open the item on the Workshop and copy the address bar. Nothing here uploads anything."/>
+
+          <Grid Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="LinkBox" Grid.Column="0" TextWrapping="NoWrap"/>
+            <Button x:Name="LookUpButton" Grid.Column="1" Margin="8,0,0,0" Content="Look up"
+                    Click="LookUpButton_Click" IsDefault="True"/>
+          </Grid>
+
+          <Border x:Name="ResultPanel" Margin="0,12,0,0" CornerRadius="6" Padding="12" Visibility="Collapsed"
+                  Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <Border Width="72" Height="72" CornerRadius="4" ClipToBounds="True"
+                        Background="{DynamicResource Row}">
+                  <Image x:Name="PreviewImage" Stretch="UniformToFill"/>
+                </Border>
+                <StackPanel Margin="12,0,0,0" Width="360">
+                  <TextBlock x:Name="ResultTitleText" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="ResultDetailText" Style="{StaticResource Soft}" Margin="0,3,0,0"/>
+                  <TextBlock x:Name="ResultCreatorText" Style="{StaticResource Mono}" Margin="0,3,0,0"/>
+                </StackPanel>
+              </StackPanel>
+
+              <TextBlock x:Name="ResultWarningText" Margin="0,10,0,0" Visibility="Collapsed"
+                         Foreground="{DynamicResource Warn}"/>
+
+              <Button x:Name="BindButton" Style="{StaticResource Primary}" Margin="0,12,0,0"
+                      HorizontalAlignment="Left" Content="Bind this item" Click="BindButton_Click"/>
+            </StackPanel>
+          </Border>
+
+          <TextBlock x:Name="LookUpMessage" Margin="0,10,0,0" Visibility="Collapsed"
+                     Foreground="{DynamicResource Bad}"/>
+        </StackPanel>
+      </TabItem>
+
+      <TabItem Header="New item">
+        <StackPanel Margin="0,12,0,0">
+          <TextBlock Text="What the item should be created as."/>
+          <TextBlock Style="{StaticResource Soft}" Margin="0,2,0,0"
+                     Text="Saved beside the map. The item itself is created by the next compile, if the step is set to publish and allowed to create."/>
+
+          <TextBlock Style="{StaticResource Soft}" Margin="0,14,0,3" Text="Title"/>
+          <TextBox x:Name="TitleBox"/>
+
+          <TextBlock Style="{StaticResource Soft}" Margin="0,14,0,3" Text="Tags — up to two"/>
+          <WrapPanel x:Name="TagPanel"/>
+
+          <TextBlock Style="{StaticResource Soft}" Margin="0,10,0,3" Text="Icon — 512x512 baseline JPEG"/>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="IconBox" Grid.Column="0" TextWrapping="NoWrap" IsReadOnly="True"/>
+            <Button Grid.Column="1" Margin="8,0,0,0" Content="Choose…" Click="ChooseIconButton_Click"/>
+          </Grid>
+          <TextBlock x:Name="IconVerdictText" Margin="0,8,0,0" Style="{StaticResource Soft}"/>
+
+          <Button x:Name="SaveNewButton" Style="{StaticResource Primary}" Margin="0,16,0,0"
+                  HorizontalAlignment="Left" Content="Save" Click="SaveNewButton_Click"/>
+        </StackPanel>
+      </TabItem>
+
+    </TabControl>
+
+    <DockPanel Grid.Row="3" Margin="0,14,0,0">
+      <Button DockPanel.Dock="Right" Content="Close" Click="CloseButton_Click" IsCancel="True"/>
+      <Button x:Name="UnbindButton" DockPanel.Dock="Right" Margin="0,0,8,0"
+              Content="Remove binding" Click="UnbindButton_Click"/>
+      <TextBlock x:Name="StatusText" Style="{StaticResource Soft}" VerticalAlignment="Center"/>
+    </DockPanel>
+
+  </Grid>
+</Window>

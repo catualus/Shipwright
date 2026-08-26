@@ -28,13 +28,21 @@ every compile.
 
 ## Which item it publishes to
 
-A file called `<mapname>.workshop.json` next to your `.vmf`. It holds the item's ID, when it was last
-published, the map revision, and a hash of what was uploaded.
+Select a map in the queue, expand the **Shipwright** step, and press **Workshop**. That window is
+where a map is bound to an item — paste the item's page address, see its title and picture, and bind
+it. Nothing in that window uploads anything.
 
-Nothing is ever matched by title. If you want the step to update an item that already exists, put its
-ID in that file (or in the **Workshop item** parameter) — the number at the end of its Workshop URL.
-Before overwriting anything, the step asks Steam's public API what that ID actually is and prints the
-title, so you see the name of the map you are about to replace.
+The answer is stored in `<mapname>.workshop.json` next to your `.vmf`, along with the title and tags
+a new item should be created with, when it was last published, the map revision, and a hash of what
+was uploaded.
+
+**It is per map, not per preset.** That is why it is not a parameter: a preset applies to every map in
+the queue, so an ID typed into one would send every queued map to the same item, each overwriting the
+last.
+
+Nothing is ever matched by title. Before overwriting anything, the step asks Steam's public API what
+the bound ID actually is and prints the title, so the name of the map you are about to replace is in
+the log whether or not you opened the window.
 
 ## The entity lump
 
@@ -70,8 +78,11 @@ Your `.vmf` is never in there, and neither is any other map in your maps folder.
 
 - Steam running, signed in as the account that owns the item.
 - Garry's Mod installed — `gmad.exe` and `gmpublish.exe` come from its `bin` folder.
-- For a new item, a 512x512 baseline JPEG icon with 4:2:0 chroma. Run
-  `shipwright check-icon your.jpg` if you are not sure; it says which of the three it failed.
+- For a new item, a 512x512 baseline JPEG icon with 4:2:0 chroma. The **Workshop** window checks one
+  as soon as you pick it; `shipwright check-icon your.jpg` says the same thing from a terminal.
+- A Compile Pal that supports plugin settings windows, for the **Workshop** button — this fork, after
+  1.0.2. On anything older every other part still works, and the binding is a text file you edit by
+  hand.
 
 Shipwright never asks for, stores or sends a Steam password. Uploads go through the Steam client that
 is already signed in, which is also what stops it publishing to an item you do not own.
@@ -81,5 +92,6 @@ is already signed in, which is also what stops it publishing to an item you do n
 | | |
 |---|---|
 | `shipwright.exe` | The tool. Run it with no arguments for the command list. `inspect` tells you what a publish would ship without touching anything. |
+| `shipwright-ui.exe` | The **Workshop** window. Binds a map to an item, or records what a new one should be called. Never uploads. |
 | `meta.json` | Tells Compile Pal the step exists, and when to run it. |
 | `parameters.json` | The options in the parameter picker. |

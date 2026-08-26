@@ -12,6 +12,8 @@
   "CheckExitCode": true,
   "BasisString": " -bin $binFolder$ -vmf $vmfFile$ -gamename $gameName$",
   "SupportsBSP": true,
+  "Configure": "Plugins\\Shipwright\\shipwright-ui.exe -vmf $vmfFile$ -bin $binFolder$",
+  "ConfigureLabel": "Workshop",
   "CompatibleGames": [
     4000
   ],

@@ -83,7 +83,10 @@ namespace Shipwright
             foreach (var (source, relative) in chosen)
                 staging.Add(source, relative);
 
-            staging.Write("addon.json", AddonManifest.Build(options.ResolveTitle(), options.Tags));
+            var state = WorkshopState.Load(options.StatePath!);
+
+            staging.Write("addon.json", AddonManifest.Build(
+                options.ResolveTitle(state), options.ResolveTags(state)));
 
             string gmaPath = Path.Combine(staging.Root, mapName + ".gma");
 
@@ -97,7 +100,6 @@ namespace Shipwright
             long addonBytes = new FileInfo(gmaPath).Length;
             string hash = Sha256Of(gmaPath);
 
-            var state = WorkshopState.Load(options.StatePath!);
             ulong? target = ResolveTarget(options, state);
             bool wouldCreate = target is null;
 
@@ -209,17 +211,19 @@ namespace Shipwright
         private static int Create(Options options, string gmpublish, string gmaPath,
             BspFacts facts, string hash, WorkshopState state)
         {
-            if (options.IconPath is null)
+            string? iconPath = options.IconPath ?? state.IconPath;
+
+            if (iconPath is null)
             {
                 Log.Error("creating a new item needs an icon: a 512x512 baseline JPEG. " +
                           "gmpublish refuses to create one without it.");
                 return Failed;
             }
 
-            var icon = IconCheck.Inspect(options.IconPath);
+            var icon = IconCheck.Inspect(iconPath);
             if (!icon.Acceptable)
             {
-                Log.Error($"the icon {Path.GetFileName(options.IconPath)} {icon.Message}");
+                Log.Error($"the icon {Path.GetFileName(iconPath)} {icon.Message}");
                 return Failed;
             }
 
@@ -231,7 +235,7 @@ namespace Shipwright
              * afterwards either way.
              */
             string icoBeside = Path.ChangeExtension(gmaPath, ".jpg");
-            File.Copy(options.IconPath, icoBeside, overwrite: true);
+            File.Copy(iconPath, icoBeside, overwrite: true);
 
             Log.Out("creating a new Workshop item");
 
@@ -271,7 +275,7 @@ namespace Shipwright
         private static void Record(Options options, WorkshopState state, ulong id, BspFacts facts, string hash)
         {
             state.WorkshopId = id.ToString();
-            state.Title = options.ResolveTitle();
+            state.Title = options.ResolveTitle(state);
             state.LastPublished = DateTimeOffset.UtcNow;
             state.BspRevision = facts.MapRevision;
             state.EntitiesStripped = facts.EntitiesStripped;

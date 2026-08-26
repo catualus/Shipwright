@@ -2,4 +2,5 @@
   <Project Path="Shipwright.Tests/Shipwright.Tests.csproj" />
   <Project Path="Shipwright/Shipwright.csproj" />
   <Project Path="ShipwrightCli/ShipwrightCli.csproj" />
+  <Project Path="ShipwrightUi/ShipwrightUi.csproj" />
 </Solution>

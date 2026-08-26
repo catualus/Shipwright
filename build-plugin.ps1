@@ -38,40 +38,58 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
-$staging = Join-Path $root 'artifacts/publish'
 $out = Join-Path $root 'artifacts/Shipwright'
 
 # The folder name is load-bearing: Compile Pal matches it against meta.json's "Name" to decide
 # whether a step is already registered, and a mismatch loads the plugin under a name its parameters
 # do not belong to.
-$source = Join-Path $root 'CompilePalPlugin/Shipwright'
 
-Write-Host 'Publishing shipwright...' -ForegroundColor Cyan
+# Two executables, and they are published separately because they are different programs: the step
+# is a console application whose output Compile Pal reads, and the settings window is a WPF one.
+function Publish-Binary {
+    param(
+        [Parameter(Mandatory)][string]$Project,
+        [Parameter(Mandatory)][string]$Executable
+    )
 
-[string[]]$publishArgs = @(
-    'publish'
-    (Join-Path $root 'ShipwrightCli/ShipwrightCli.csproj')
-    '--configuration', 'Release'
-    '--runtime', 'win-x64'
-    '--self-contained', 'true'
-    '-p:PublishSingleFile=true'
-    '-p:IncludeNativeLibrariesForSelfExtract=true'
-    '-warnaserror'
-    '--output', $staging
-)
+    $staging = Join-Path $root "artifacts/publish/$Executable"
 
-if ($Version) { $publishArgs += "-p:Version=$Version" }
+    Write-Host "Publishing $Executable..." -ForegroundColor Cyan
 
-dotnet @publishArgs
+    [string[]]$publishArgs = @(
+        'publish'
+        (Join-Path $root $Project)
+        '--configuration', 'Release'
+        '--runtime', 'win-x64'
+        '--self-contained', 'true'
+        '-p:PublishSingleFile=true'
+        '-p:IncludeNativeLibrariesForSelfExtract=true'
+        # Roughly halves the folder. A self-contained WPF application carries the whole desktop
+        # runtime, and a plugin folder is something people download and copy around.
+        '-p:EnableCompressionInSingleFile=true'
+        '-warnaserror'
+        '--output', $staging
+    )
 
-if ($LASTEXITCODE -ne 0) { throw "publish failed with exit code $LASTEXITCODE" }
+    if ($Version) { $publishArgs += "-p:Version=$Version" }
+
+    dotnet @publishArgs
+
+    if ($LASTEXITCODE -ne 0) { throw "publish of $Executable failed with exit code $LASTEXITCODE" }
+
+    Copy-Item (Join-Path $staging $Executable) $out
+}
 
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 New-Item -ItemType Directory -Path $out -Force | Out-Null
 
-Copy-Item (Join-Path $staging 'shipwright.exe') $out
+Publish-Binary -Project 'ShipwrightCli/ShipwrightCli.csproj' -Executable 'shipwright.exe'
+Publish-Binary -Project 'ShipwrightUi/ShipwrightUi.csproj' -Executable 'shipwright-ui.exe'
 
-# Not the .pdb: it is larger than the executable and a plugin folder is something people copy around.
+# Not the .pdb files: they are larger than the executables and a plugin folder is something people
+# copy around.
+$source = Join-Path $root 'CompilePalPlugin/Shipwright'
+
 Copy-Item (Join-Path $source 'meta.json') $out
 Copy-Item (Join-Path $source 'parameters.json') $out
 Copy-Item (Join-Path $root 'LICENSE') $out
@@ -96,4 +114,5 @@ if ($Zip) {
 Write-Host ''
 Write-Host 'To install: copy the Shipwright folder into your Compile Pal "Plugins" directory,'
 Write-Host 'then restart Compile Pal and add the Shipwright step to a preset.'
+Write-Host 'Press Workshop on the step to choose which item a map publishes to.'
 Write-Host 'It starts as a dry run. Nothing is uploaded until "Actually publish" is enabled.'

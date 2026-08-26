@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+
+    <!--
+      The name Compile Pal is told to run. Distinct from shipwright.exe on purpose: the compile step
+      is a console program whose output ends up in the compile log, and this one is a window. One
+      binary doing both means a console application that hides its console, or a windowed one that
+      re-attaches to its parent's - either way a program that behaves differently depending on who
+      started it, for the sake of saving a file in a folder nobody looks inside.
+    -->
+    <AssemblyName>shipwright-ui</AssemblyName>
+    <RootNamespace>Shipwright.Ui</RootNamespace>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
+      NOT InvariantGlobalization, which the console half of this does set. WPF's font machinery
+      constructs a CultureInfo for "en" while measuring the very first line of text, and in
+      invariant mode that throws - so the window died during layout, before anything appeared, with
+      a font cache stack trace that says nothing about the setting that caused it.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shipwright\Shipwright.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -60,6 +60,20 @@ namespace Shipwright
         [JsonPropertyName("gmaSha256")]
         public string? GmaSha256 { get; set; }
 
+        /// <summary>
+        /// What a new item should be created as, when no ID is bound yet.
+        ///
+        /// These three are per map, which is exactly why they moved out of the compile parameters:
+        /// a parameter belongs to the preset, the preset applies to every map in the queue, and
+        /// "the title of the item" is not something two maps can share. The parameters still exist
+        /// and still win when they are set, for anyone driving the tool from a script.
+        /// </summary>
+        [JsonPropertyName("tags")]
+        public string[]? Tags { get; set; }
+
+        [JsonPropertyName("iconPath")]
+        public string? IconPath { get; set; }
+
         private static readonly JsonSerializerOptions Options = new()
         {
             WriteIndented = true,
