@@ -114,5 +114,5 @@ if ($Zip) {
 Write-Host ''
 Write-Host 'To install: copy the Shipwright folder into your Compile Pal "Plugins" directory,'
 Write-Host 'then restart Compile Pal and add the Shipwright step to a preset.'
-Write-Host 'Press Workshop on the step to choose which item a map publishes to.'
-Write-Host 'It starts as a dry run. Nothing is uploaded until "Actually publish" is enabled.'
+Write-Host 'Press Workshop on the step to set a map up: which item, what to publish, and whether to.'
+Write-Host 'It starts as a dry run. Nothing is uploaded until a map is set to publish in that window.'

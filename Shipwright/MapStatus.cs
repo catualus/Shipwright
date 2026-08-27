@@ -70,8 +70,14 @@ namespace Shipwright
             var state = WorkshopState.Load(statePath);
 
             string args = stepArgs ?? "";
-            bool willPublish = stepEnabled && HasFlag(args, "-publish");
-            bool mayCreate = HasFlag(args, "-allowcreate");
+
+            /*
+             * Either source can arm a publish, and neither can disarm the other. The window writes
+             * the map's own answer - which is where the switch lives now - and the flag is still
+             * read for anyone driving the step from a script.
+             */
+            bool willPublish = stepEnabled && (state.Publish || HasFlag(args, "-publish"));
+            bool mayCreate = state.AllowCreate || HasFlag(args, "-allowcreate");
 
             bool bound = Sanitize.IsWorkshopId(state.WorkshopId, out ulong id);
             string title = string.IsNullOrWhiteSpace(state.Title) ? "" : state.Title!;
@@ -81,7 +87,7 @@ namespace Shipwright
                 string name = title.Length > 0 ? title : id.ToString();
 
                 if (!willPublish)
-                    return new MapStatus(name, $"Bound to item {id}. This preset is not set to publish.",
+                    return new MapStatus(name, $"Bound to item {id}. Publishing is off for this map.",
                         StatusSeverity.Ok, Confirm: false);
 
                 string detail = $"Replaces \"{name}\" (item {id}) on the Workshop, for everyone subscribed to it.";
@@ -93,7 +99,7 @@ namespace Shipwright
             }
 
             if (!willPublish)
-                return new MapStatus("not bound", "No Workshop item. This preset is not set to publish.",
+                return new MapStatus("not bound", "No Workshop item, and publishing is off for this map.",
                     StatusSeverity.Ok, Confirm: false);
 
             if (mayCreate)
@@ -104,9 +110,9 @@ namespace Shipwright
                     StatusSeverity.Warn, Confirm: true);
 
             return new MapStatus("not bound",
-                "No Workshop item is bound to this map, and creating one is not allowed - so this compile " +
-                "would finish and publish nothing. Press Workshop on the step to bind it, or take the map " +
-                "out of the queue.",
+                "This map is set to publish, but no Workshop item is bound to it and creating one is not " +
+                "allowed - so this compile would finish and publish nothing. Press Workshop on the step to " +
+                "bind it, or turn publishing off for this map.",
                 StatusSeverity.Blocking, Confirm: true);
         }
 

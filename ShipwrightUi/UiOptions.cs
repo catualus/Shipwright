@@ -13,15 +13,24 @@ namespace Shipwright.Ui
     public sealed class UiOptions
     {
         public const string Usage =
-            "shipwright-ui -vmf <map.vmf> [-state <path>] [-bin <folder>]";
+            "shipwright-ui -vmf <map.vmf> [-bsp <map.bsp>] [-state <path>] [-bin <folder>]";
 
         /// <summary>The map this binding belongs to. Its name is what the window says at the top.</summary>
         public string MapSource = "";
 
         public string StatePath = "";
 
-        /// <summary>Where Garry's Mod's tools are. Unused today; kept because the step passes it.</summary>
+        /// <summary>Where Garry's Mod's tools are, for listing what the account has published.</summary>
         public string BinFolder = "";
+
+        /// <summary>
+        /// The compiled map, when there is one.
+        ///
+        /// The window reads it to show what would actually be published - size, map revision, whether
+        /// the entities have been moved out - which is the same inspection the compile step does. A
+        /// map that has never been compiled simply has none of that yet.
+        /// </summary>
+        public string BspPath = "";
 
         public string MapName => Path.GetFileNameWithoutExtension(MapSource);
 
@@ -45,6 +54,10 @@ namespace Shipwright.Ui
 
                     case "-bin":
                         options.BinFolder = Next(args, ref i);
+                        break;
+
+                    case "-bsp":
+                        options.BspPath = Next(args, ref i);
                         break;
 
                     default:

@@ -130,11 +130,46 @@
         </Setter>
       </Style>
 
+      <!--
+        Templated, because the stock check box paints its own light chrome regardless of what is
+        behind it - a row of white squares on a dark window, which reads as a rendering fault rather
+        than a control.
+      -->
       <Style TargetType="CheckBox">
         <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
         <Setter Property="FontSize" Value="12.5"/>
         <Setter Property="Margin" Value="0,0,14,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="CheckBox">
+              <StackPanel Orientation="Horizontal" Background="Transparent">
+                <Border x:Name="Box" Width="17" Height="17" CornerRadius="4" VerticalAlignment="Top"
+                        Margin="0,1,9,0" BorderThickness="1"
+                        Background="{DynamicResource Row}" BorderBrush="{DynamicResource Line}">
+                  <TextBlock x:Name="Tick" Text="&#x2713;" FontSize="11.5" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                             Foreground="{DynamicResource AccentInk}" Visibility="Collapsed"/>
+                </Border>
+                <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True"/>
+              </StackPanel>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                  <Setter TargetName="Box" Property="Background" Value="{DynamicResource Accent}"/>
+                  <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                  <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                  <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter Property="Opacity" Value="0.5"/>
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
       </Style>
 
     </ResourceDictionary>

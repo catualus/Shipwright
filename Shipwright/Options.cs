@@ -55,6 +55,9 @@ namespace Shipwright
         /// <summary>Refuse to publish the same item again within this many minutes.</summary>
         public int MinIntervalMinutes = 5;
 
+        /// <summary>Whether -mininterval was actually given, as opposed to left at its default.</summary>
+        public bool MinIntervalGiven;
+
         public string? StatePath;
         public bool KeepStaging;
 
@@ -106,6 +109,7 @@ namespace Shipwright
                         options.MinIntervalMinutes = int.TryParse(Next(args, ref i, arg), out int minutes) && minutes >= 0
                             ? minutes
                             : throw new ArgumentException("-mininterval takes a number of minutes.");
+                        options.MinIntervalGiven = true;
                         break;
 
                     default:
@@ -151,9 +155,9 @@ namespace Shipwright
         /// A file is offered because a note is the one piece of free text long enough to want
         /// newlines in, and Compile Pal parameter values cannot carry them.
         /// </summary>
-        public string ResolveChangeNote()
+        public string ResolveChangeNote(WorkshopState? state = null)
         {
-            string raw = ChangeNote;
+            string raw = ChangeNote.Length > 0 ? ChangeNote : state?.ChangeNote ?? "";
 
             if (ChangeNoteFile != null)
             {
@@ -195,5 +199,35 @@ namespace Shipwright
         /// <summary>Tags from the parameter if any were given, otherwise the map's own.</summary>
         public IEnumerable<string> ResolveTags(WorkshopState? state = null) =>
             Tags.Count > 0 ? Tags : (state?.Tags ?? Array.Empty<string>());
+
+        /*
+         * Everything below answers the same question: the map's own answer, or the one on the command
+         * line?
+         *
+         * The window writes the map's answer, and that is where these settings belong - a preset is
+         * shared by every queued map and cannot say "this one publishes to that item". The command
+         * line still wins where it was given, because something has to work for a script, and because
+         * a flag someone typed should never be quietly ignored in favour of a file.
+         *
+         * For the switches that cause something irreversible the two are OR-ed rather than
+         * overridden: neither source can turn the other one off, so nothing can arm a publish that
+         * was not armed somewhere on purpose.
+         */
+
+        /// <summary>Whether this run actually uploads. Off unless the map or the command line says so.</summary>
+        public bool ResolvePublish(WorkshopState? state = null) => Publish || (state?.Publish ?? false);
+
+        /// <summary>Whether an unbound map may have an item created for it.</summary>
+        public bool ResolveAllowCreate(WorkshopState? state = null) => AllowCreate || (state?.AllowCreate ?? false);
+
+        public bool ResolveIncludeLump(WorkshopState? state = null) => IncludeLump || (state?.IncludeLump ?? false);
+
+        public bool ResolveIncludeNav(WorkshopState? state = null) => IncludeNav || (state?.IncludeNav ?? false);
+
+        public bool ResolveIncludeAin(WorkshopState? state = null) => IncludeAin || (state?.IncludeAin ?? false);
+
+        /// <summary>The minimum gap between publishes: the flag if given, then the map's, then the default.</summary>
+        public int ResolveMinInterval(WorkshopState? state = null) =>
+            MinIntervalGiven ? MinIntervalMinutes : state?.MinIntervalMinutes ?? MinIntervalMinutes;
     }
 }

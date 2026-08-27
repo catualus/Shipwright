@@ -54,8 +54,10 @@ namespace Shipwright.Ui
             Title = $"Workshop target — {options.MapName}";
 
             BuildTagBoxes();
+            BuildIntervalBox();
             LoadStateIntoFields();
             ShowBinding();
+            ShowMapFacts();
 
             SourceInitialized += (_, _) => MatchTitleBarToTheme();
         }
@@ -119,8 +121,94 @@ namespace Shipwright.Ui
                 box.IsChecked = false;
         }
 
+        /// <summary>The gaps offered between publishes. The same set the compile parameter used to offer.</summary>
+        private static readonly int[] Intervals = { 0, 5, 15, 60 };
+
+        private void BuildIntervalBox()
+        {
+            foreach (int minutes in Intervals)
+                IntervalBox.Items.Add(minutes == 0 ? "no limit" : $"{minutes} minutes");
+        }
+
+        /// <summary>
+        /// What this map actually is, read from the compiled BSP beside it.
+        ///
+        /// The same three facts the compile step reports, shown where the decisions are made: how big
+        /// the thing being uploaded is, which map revision it is - the number a server's .lmp has to
+        /// match - and whether the entities are still in it.
+        /// </summary>
+        private void ShowMapFacts()
+        {
+            if (options.BspPath.Length == 0 || !File.Exists(options.BspPath))
+            {
+                BspFactsText.Text = "This map has not been compiled yet, so there is nothing to publish.";
+                LumpFactsText.Visibility = Visibility.Collapsed;
+                ExtrasFactsText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var facts = BspReader.Read(options.BspPath);
+
+            if (!facts.Readable)
+            {
+                BspFactsText.Text = $"{Path.GetFileName(options.BspPath)}: {facts.Message}";
+                LumpFactsText.Visibility = Visibility.Collapsed;
+                ExtrasFactsText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            long bytes = new FileInfo(options.BspPath).Length;
+
+            BspFactsText.Text =
+                $"{Path.GetFileName(options.BspPath)}  ·  {bytes / 1024f / 1024f:F1} MB  ·  map revision {facts.MapRevision}";
+
+            var lump = LumpFiles.Inspect(options.BspPath);
+
+            LumpFactsText.Text = facts.LumpState switch
+            {
+                EntityLumpState.Present => $"Entities are in the map ({facts.EntityCount:N0} of them).",
+                _ => lump.State switch
+                {
+                    LumpPairingState.Matched =>
+                        $"Entities moved out to {Path.GetFileName(lump.Path!)}, which matches this revision. " +
+                        "Servers need that file beside the map.",
+                    LumpPairingState.Stale =>
+                        $"Entities moved out, but {Path.GetFileName(lump.Path!)} belongs to revision " +
+                        $"{lump.LumpRevision} rather than {lump.BspRevision}. The engine would ignore it.",
+                    _ => "Entities moved out, and no matching .lmp was found. This map would load empty.",
+                },
+            };
+
+            LumpFactsText.Foreground = (System.Windows.Media.Brush)FindResource(
+                facts.EntitiesStripped && lump.State != LumpPairingState.Matched ? "Warn" : "InkSoft");
+
+            var extras = new List<string>();
+
+            if (File.Exists(Path.ChangeExtension(options.BspPath, ".nav")))
+                extras.Add("nav mesh");
+
+            if (File.Exists(Path.ChangeExtension(options.BspPath, ".ain")))
+                extras.Add("AI node graph");
+
+            ExtrasFactsText.Text = extras.Count > 0
+                ? "Beside it: " + string.Join(", ", extras) + "."
+                : "No nav mesh or node graph beside it.";
+        }
+
         private void LoadStateIntoFields()
         {
+            PublishBox.IsChecked = state.Publish;
+            AllowCreateBox.IsChecked = state.AllowCreate;
+            ChangeNoteBox.Text = state.ChangeNote ?? "";
+
+            IncludeLumpBox.IsChecked = state.IncludeLump ?? false;
+            IncludeNavBox.IsChecked = state.IncludeNav ?? false;
+            IncludeAinBox.IsChecked = state.IncludeAin ?? false;
+
+            int interval = state.MinIntervalMinutes ?? 5;
+            int index = Array.IndexOf(Intervals, interval);
+            IntervalBox.SelectedIndex = index >= 0 ? index : 1;
+
             TitleBox.Text = string.IsNullOrWhiteSpace(state.Title) ? options.MapName : state.Title;
 
             if (state.IconPath is { } icon)
@@ -134,9 +222,73 @@ namespace Shipwright.Ui
             }
         }
 
+        /// <summary>
+        /// Writes the switches on the Publishing tab, and says in a sentence what they add up to.
+        ///
+        /// Saved as they are changed rather than behind a Save button: this window has no other
+        /// outcome, and something that quietly discards what you set because you closed it is worse
+        /// than a file written a few times more than necessary.
+        /// </summary>
+        private void PublishBox_Click(object sender, RoutedEventArgs e) => SaveSwitches();
+
+        private void IntervalBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (IsLoaded)
+                SaveSwitches();
+        }
+
+        private void ChangeNoteBox_LostFocus(object sender, RoutedEventArgs e) => SaveSwitches();
+
+        private void SaveSwitches()
+        {
+            state.Publish = PublishBox.IsChecked == true;
+            state.AllowCreate = AllowCreateBox.IsChecked == true;
+            state.ChangeNote = ChangeNoteBox.Text.Length > 0 ? ChangeNoteBox.Text : null;
+
+            state.IncludeLump = IncludeLumpBox.IsChecked == true;
+            state.IncludeNav = IncludeNavBox.IsChecked == true;
+            state.IncludeAin = IncludeAinBox.IsChecked == true;
+
+            if (IntervalBox.SelectedIndex >= 0 && IntervalBox.SelectedIndex < Intervals.Length)
+                state.MinIntervalMinutes = Intervals[IntervalBox.SelectedIndex];
+
+            if (Save())
+                StatusText.Text = "Saved.";
+
+            ShowPlan();
+        }
+
+        /// <summary>
+        /// One sentence for what the next compile of this map will do.
+        ///
+        /// The switches each describe themselves, but what they mean together is the thing worth
+        /// being sure about - and it is the sentence somebody reads before closing the window.
+        /// </summary>
+        private void ShowPlan()
+        {
+            bool publish = PublishBox.IsChecked == true;
+            bool create = AllowCreateBox.IsChecked == true;
+            bool bound = state.WorkshopId != null;
+
+            string name = string.IsNullOrWhiteSpace(state.Title) ? state.WorkshopId ?? "" : state.Title!;
+
+            PlanText.Text = (publish, bound, create) switch
+            {
+                (false, _, _) => "Next compile: builds the addon and reports it. Nothing is uploaded.",
+                (true, true, _) => $"Next compile: replaces \"{name}\" on the Workshop, for everyone subscribed to it.",
+                (true, false, true) => "Next compile: creates a new Workshop item for this map.",
+                (true, false, false) => "This map is set to publish but is not bound to an item, and creating one is " +
+                                        "not allowed - Compile Pal will refuse to start the run.",
+            };
+
+            PlanText.Foreground = (System.Windows.Media.Brush)FindResource(
+                publish ? (bound || create ? "Warn" : "Bad") : "InkSoft");
+        }
+
         private void ShowBinding()
         {
             UnbindButton.IsEnabled = state.WorkshopId != null;
+            ShowPlan();
 
             if (state.WorkshopId is not { } id)
             {

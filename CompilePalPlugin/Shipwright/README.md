@@ -14,45 +14,30 @@ The step runs at order 12.5 — after `BSPZIP` (12.1), which is the last step th
 before `GAME` (13). It only appears for Garry's Mod, because gmad and gmpublish are the only
 Workshop publishing tools any Source game gives you.
 
-## It will not publish anything until you say so twice
+## Everything is set in one window
 
-Out of the box the step is a **dry run**: it packs the addon, lists every file inside it, names the
-Workshop item it would update, and stops. Nothing reaches Steam.
+Select a map in the queue, expand the **Shipwright** step, and press **Workshop**. That window is the
+whole of it — what the map is, which item it publishes to, and whether it publishes at all:
 
-- **Actually publish** is what turns it into an upload.
-- **Allow creating a new item** is separate, and only matters when no item is bound to the map yet.
+- **Publishing** — the switch that arms it, whether an item may be created, the change note, what
+  ships beside the map, and how often the item may be updated.
+- **Your maps** — everything this Steam account has published, filtered to maps.
+- **Paste a link** — bind by pasting an item's address. Works with Steam closed.
+- **New item** — the title, tags and icon a new item is created with.
 
-Without the second one, a map with no item recorded is skipped with a message rather than published
-somewhere new. That is deliberate: "create a new item" is not a sensible thing to do by accident on
-every compile.
+The top of the window says what the map is: its size, its map revision, whether the entities have
+been moved out and whether the `.lmp` beside it matches, and whether a nav mesh is there. Nothing in
+the window uploads anything.
 
-## Which item it publishes to
+**It is all per map.** That is the point: a Compile Pal preset is shared by every map in the queue, so
+a switch there would arm all of them and one Workshop ID there would send them all to the same item.
+Arming one map leaves the rest alone.
 
-Select a map in the queue, expand the **Shipwright** step, and press **Workshop**. That window is
-where a map is bound to an item, three ways:
+**Nothing publishes until you turn it on for that map.** Until then every compile builds the addon,
+prints exactly what it would upload and to which item, and stops.
 
-- **Your maps** — everything this Steam account has published, listed by asking `gmpublish list`,
-  filtered to items the Workshop records as maps. Needs Steam running and signed in. The filter reads
-  the addon's **type tag**, not its title, so a content pack called "… Map" stays out and a map called
-  anything else stays in — and it is only as right as whoever published the item. Untick **Only maps**
-  to see everything; when Steam cannot say which is which, nothing is hidden.
-- **Paste a link** — the item's page address from your browser, resolved to a title and a picture
-  before it is bound. Works with Steam closed.
-- **New item** — the title, tags and icon a new item should be created with, checked as you pick them.
-
-Nothing in that window uploads anything.
-
-The answer is stored in `<mapname>.workshop.json` next to your `.vmf`, along with the title and tags
-a new item should be created with, when it was last published, the map revision, and a hash of what
-was uploaded.
-
-**It is per map, not per preset.** That is why it is not a parameter: a preset applies to every map in
-the queue, so an ID typed into one would send every queued map to the same item, each overwriting the
-last.
-
-Nothing is ever matched by title. Before overwriting anything, the step asks Steam's public API what
-the bound ID actually is and prints the title, so the name of the map you are about to replace is in
-the log whether or not you opened the window.
+The step's own parameters are now only the three that belong to a run rather than a map: publish even
+if nothing changed, skip the pre-publish lookup, and keep the staging folder.
 
 ## What the queue tells you
 

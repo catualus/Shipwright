@@ -62,6 +62,16 @@ namespace Shipwright
             var lump = LumpFiles.Inspect(options.BspPath);
             ReportLumpState(facts, lump);
 
+            /*
+             * Read before anything else is decided. Almost every question this run asks - whether it
+             * publishes at all, to which item, with what in it - is answered per map in the settings
+             * window and stored here, with the command line as an override for anyone driving this
+             * from a script.
+             */
+            var state = WorkshopState.Load(options.StatePath!);
+
+            bool publishing = options.ResolvePublish(state);
+
             bool blockedByCompile = CompileHadErrors(out string compileVerdict);
             if (compileVerdict.Length > 0)
                 Log.Warn(compileVerdict);
@@ -90,16 +100,14 @@ namespace Shipwright
              * Steam is running, is signed in, and the only thing wrong is that its own registration
              * points at a process that has exited.
              */
-            if (options.Publish && SteamState.Check() is { WorthSayingUpFront: true } steam)
+            if (publishing && SteamState.Check() is { WorthSayingUpFront: true } steam)
                 Log.Warn(steam.Message);
 
             using var staging = Staging.Create(mapName, options.KeepStaging);
 
-            var chosen = ChooseFiles(options, facts, lump, mapName);
+            var chosen = ChooseFiles(options, state, facts, lump, mapName);
             foreach (var (source, relative) in chosen)
                 staging.Add(source, relative);
-
-            var state = WorkshopState.Load(options.StatePath!);
 
             staging.Write("addon.json", AddonManifest.Build(
                 options.ResolveTitle(state), options.ResolveTags(state)));
@@ -151,17 +159,18 @@ namespace Shipwright
                 }
             }
 
-            if (wouldCreate && !options.AllowCreate)
+            if (wouldCreate && !options.ResolveAllowCreate(state))
             {
-                Log.Warn($"no Workshop item is bound to this map, and creating one was not allowed. " +
-                         $"Nothing was published. Bind one by putting its ID in " +
-                         $"{Path.GetFileName(options.StatePath!)}, or enable \"Allow creating a new item\".");
+                Log.Warn("no Workshop item is bound to this map, and creating one was not allowed. " +
+                         "Nothing was published. Press Workshop on the step to bind it, or to allow " +
+                         "creating an item for it.");
                 return Ok;
             }
 
-            if (!options.Publish)
+            if (!publishing)
             {
-                Log.Out("dry run: nothing was uploaded. Enable \"Actually publish\" to do it for real.");
+                Log.Out("dry run: nothing was uploaded. Turn on \"Publish this map when it compiles\" " +
+                        "in the Workshop window to do it for real.");
                 return Ok;
             }
 
@@ -179,7 +188,7 @@ namespace Shipwright
                 return Ok;
             }
 
-            if (!options.Force && TooSoon(state, options, out string wait))
+            if (!options.Force && TooSoon(state, options.ResolveMinInterval(state), out string wait))
             {
                 Log.Warn(wait);
                 return Ok;
@@ -196,7 +205,7 @@ namespace Shipwright
         private static int Update(Options options, string gmpublish, string gmaPath, ulong id,
             BspFacts facts, string hash, WorkshopState state)
         {
-            string note = options.ResolveChangeNote();
+            string note = options.ResolveChangeNote(state);
 
             Log.Out($"updating Workshop item {id}");
 
@@ -214,8 +223,8 @@ namespace Shipwright
 
             Record(options, state, id, facts, hash);
 
-            Log.Out($"published. https://steamcommunity.com/sharedfiles/filedetails/?id={id}");
-            WarnAboutStrippedEntities(facts, options);
+            Log.Out($"published. {WorkshopLink.UrlFor(id)}");
+            WarnAboutStrippedEntities(facts, options, state);
             return Ok;
         }
 
@@ -283,10 +292,10 @@ namespace Shipwright
 
             Record(options, state, created.Value, facts, hash);
 
-            Log.Out($"created item {created.Value}. https://steamcommunity.com/sharedfiles/filedetails/?id={created.Value}");
+            Log.Out($"created item {created.Value}. {WorkshopLink.UrlFor(created.Value)}");
             Log.Warn("a newly created item stays hidden until the Steam Workshop legal agreement has been " +
                      "accepted on its page, and its description and images are set on the website.");
-            WarnAboutStrippedEntities(facts, options);
+            WarnAboutStrippedEntities(facts, options, state);
             return Ok;
         }
 
@@ -351,11 +360,11 @@ namespace Shipwright
         /// warning says every time rather than once in a readme.
         /// </summary>
         private static List<(string Source, string Relative)> ChooseFiles(
-            Options options, BspFacts facts, LumpPairing lump, string mapName)
+            Options options, WorkshopState state, BspFacts facts, LumpPairing lump, string mapName)
         {
             var chosen = new List<(string, string)> { (options.BspPath, $"maps/{mapName}.bsp") };
 
-            if (options.IncludeLump)
+            if (options.ResolveIncludeLump(state))
             {
                 switch (lump.State)
                 {
@@ -381,13 +390,13 @@ namespace Shipwright
             }
 
             string navPath = Path.ChangeExtension(options.BspPath, ".nav");
-            if (options.IncludeNav && File.Exists(navPath))
+            if (options.ResolveIncludeNav(state) && File.Exists(navPath))
                 chosen.Add((navPath, $"maps/{mapName}.nav"));
-            else if (options.IncludeNav)
+            else if (options.ResolveIncludeNav(state))
                 Log.Warn($"no nav mesh at {Path.GetFileName(navPath)} to include.");
 
             string ainPath = Path.ChangeExtension(options.BspPath, ".ain");
-            if (options.IncludeAin && File.Exists(ainPath))
+            if (options.ResolveIncludeAin(state) && File.Exists(ainPath))
                 chosen.Add((ainPath, $"maps/graphs/{mapName}.ain"));
 
             string thumb = Path.Combine(Path.GetDirectoryName(options.BspPath)!, "thumb", mapName + ".png");
@@ -451,9 +460,9 @@ namespace Shipwright
                 Log.Out("        (from -id on the command line, overriding the state file)");
         }
 
-        private static void WarnAboutStrippedEntities(BspFacts facts, Options options)
+        private static void WarnAboutStrippedEntities(BspFacts facts, Options options, WorkshopState state)
         {
-            if (!facts.EntitiesStripped || options.IncludeLump)
+            if (!facts.EntitiesStripped || options.ResolveIncludeLump(state))
                 return;
 
             Log.Warn($"the published map has no entity lump, and this compile is map revision {facts.MapRevision}. " +
@@ -474,21 +483,20 @@ namespace Shipwright
             return Sanitize.IsWorkshopId(state.WorkshopId, out ulong stored) ? stored : null;
         }
 
-        private static bool TooSoon(WorkshopState state, Options options, out string message)
+        private static bool TooSoon(WorkshopState state, int minimumMinutes, out string message)
         {
             message = "";
 
-            if (state.LastPublished is not { } last || options.MinIntervalMinutes <= 0)
+            if (state.LastPublished is not { } last || minimumMinutes <= 0)
                 return false;
 
             var elapsed = DateTimeOffset.UtcNow - last;
-            var minimum = TimeSpan.FromMinutes(options.MinIntervalMinutes);
 
-            if (elapsed >= minimum)
+            if (elapsed >= TimeSpan.FromMinutes(minimumMinutes))
                 return false;
 
             message = $"the last publish was {elapsed.TotalMinutes:F0} minutes ago and the minimum interval is " +
-                      $"{options.MinIntervalMinutes}. Nothing was uploaded - every update makes every subscriber " +
+                      $"{minimumMinutes}. Nothing was uploaded - every update makes every subscriber " +
                       "redownload the map.";
             return true;
         }

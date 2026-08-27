@@ -60,8 +60,9 @@ every compile. So:
   that Compile Pal writes verbatim into `debug.log` and the compile log, which are the files people
   paste into Discord when a compile fails. Steam, not this tool, decides whether the account owns the
   item.
-- **Nothing is published without two separate opt-ins.** The step is a dry run until *Actually
-  publish*; creating a new item needs *Allow creating a new item* on top of that.
+- **Nothing is published without two separate opt-ins, per map.** A map is a dry run until it is set
+  to publish in its own Workshop window; creating a new item needs a second switch on top of that.
+  Neither lives in the preset, because a preset is shared by every map in the queue.
 - **The item is bound explicitly, never matched by name.** A `<mapname>.workshop.json` beside the
   `.vmf` holds the ID. Before an update, the ID is looked up through Steam's keyless public API and
   the item's real title is printed, so overwriting the wrong map is something you see rather than
