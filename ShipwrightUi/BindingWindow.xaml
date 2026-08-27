@@ -107,7 +107,32 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <DockPanel Margin="2,4">
-                  <Button DockPanel.Dock="Right" Content="Bind" Tag="{Binding}" Click="BindMineButton_Click"/>
+                  <!-- The row this map already publishes to says so instead of offering to bind it
+                       again. Without it, binding looked like it had done nothing. -->
+                  <TextBlock DockPanel.Dock="Right" Text="bound" VerticalAlignment="Center" Margin="10,0,12,0"
+                             FontWeight="SemiBold" Foreground="{DynamicResource Accent}">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsBound}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                  <Button DockPanel.Dock="Right" Content="Bind" Tag="{Binding}" Click="BindMineButton_Click">
+                    <Button.Style>
+                      <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsBound}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Button.Style>
+                  </Button>
                   <StackPanel Margin="0,0,10,0">
                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Style="{StaticResource Mono}">

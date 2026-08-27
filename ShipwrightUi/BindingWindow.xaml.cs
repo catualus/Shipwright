@@ -365,6 +365,18 @@ namespace Shipwright.Ui
         private void OnlyMapsBox_Click(object sender, RoutedEventArgs e) => ShowMine(mine.Count);
 
         /// <summary>
+        /// Redraws the list after the binding changed, without asking Steam again.
+        ///
+        /// Only which row is marked has changed, and that is known here - going back to gmpublish for
+        /// it would take seconds and return exactly the same items.
+        /// </summary>
+        private void RefreshMineRows()
+        {
+            if (mine.Count > 0)
+                ShowMine(mine.Count);
+        }
+
+        /// <summary>
         /// Puts the list on screen, filtered to maps unless asked otherwise.
         ///
         /// Filtering on the tag rather than the title, because in a server community's Workshop half
@@ -376,7 +388,9 @@ namespace Shipwright.Ui
         {
             bool onlyMaps = typesKnown && OnlyMapsBox.IsChecked == true;
 
-            var shown = onlyMaps ? mine.Where(i => i.IsMap).ToList() : mine;
+            var shown = (onlyMaps ? mine.Where(i => i.IsMap) : mine)
+                .Select(i => i with { IsBound = IsBoundTo(i.Id) })
+                .ToList();
 
             MineList.ItemsSource = shown;
 
@@ -396,6 +410,10 @@ namespace Shipwright.Ui
                 ? $"{shown.Count} of {total} published items are maps."
                 : $"{total} published items.";
         }
+
+        /// <summary>Whether the map currently publishes to this item.</summary>
+        private bool IsBoundTo(ulong id) =>
+            Sanitize.IsWorkshopId(state.WorkshopId, out ulong bound) && bound == id;
 
         private void BindMineButton_Click(object sender, RoutedEventArgs e)
         {
@@ -551,6 +569,7 @@ namespace Shipwright.Ui
             if (Save())
             {
                 ShowBinding();
+                RefreshMineRows();
                 StatusText.Text = $"Bound to {name}.";
             }
         }
@@ -633,6 +652,7 @@ namespace Shipwright.Ui
                 return;
 
             ShowBinding();
+            RefreshMineRows();
             StatusText.Text = "Binding removed.";
         }
 
