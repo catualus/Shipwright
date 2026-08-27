@@ -1,135 +1,159 @@
 # Shipwright
 
-Publishes a compiled Source map to the Garry's Mod Workshop, as a Compile Pal compile step — updating
-the item the map is bound to, or creating one, and leaving the entity lump out of the addon.
+**Publishes your compiled map to the Garry's Mod Workshop, straight from Compile Pal.**
 
-It is also a standalone command line tool: `shipwright inspect map.bsp` says what a publish would
-ship and which item it would go to, without touching Steam or the network.
+[![CI](https://github.com/catualus/Shipwright/actions/workflows/ci.yml/badge.svg)](https://github.com/catualus/Shipwright/actions/workflows/ci.yml)
 
-## Status
+Shipwright runs as a compile step. When a map finishes compiling it packs the `.bsp` into a `.gma` and
+updates the Workshop item that map is bound to — or creates one — without leaving Compile Pal, opening
+a browser or touching a command line.
 
-**Phases 1 to 3 built.** The inspection, staging, validation and decision code is written and tested, and
-so is the settings window that binds a map to an item — Compile Pal shows it as a **Workshop** button
-on the step. The lookup has been exercised against a live Workshop item; the staging and packing path
-has been exercised against Garry's Mod's own `gmad.exe`.
+Each map is set up in its own window: which item it publishes to, what goes in it, and whether it
+publishes at all. Nothing is uploaded until you turn it on for that map.
 
-What has not happened yet is a real publish against a real item — see
-[Before the first real publish](#before-the-first-real-publish). Until that is done, run it as a dry
-run and publish by hand.
+---
 
-The host changes these depend on live in the [Compile Pal fork](https://github.com/catualus/CompilePal)
-on the `workshop-plugin-support` branch: a `Configure` command and a `MapStatus` command in
-`meta.json`, and `COMPILE_PAL_ERRORS` on every step's process.
+## Contents
 
-## The interface, decided
+- [What it does](#what-it-does)
+- [Installation](#installation)
+- [Setting up a map](#setting-up-a-map)
+- [What gets published](#what-gets-published)
+- [The entity lump](#the-entity-lump)
+- [Requirements](#requirements)
+- [Limitations](#limitations)
+- [Building from source](#building-from-source)
+- [Licence](#licence)
 
-Typing a Workshop ID into a compile parameter is not the interface. It is also unsafe in a specific
-way: Compile Pal parameters live in a **preset**, and a preset applies to every map in the queue, so
-one ID would send every queued map to the same item. The target belongs to the map, which is why it
-lives in `<mapname>.workshop.json`.
+---
 
-The plan, settled 2026-08-26:
+## What it does
 
-- **Two binaries in the plugin folder.** `shipwright.exe` stays an ordinary console program run as
-  the compile step; `shipwright-ui.exe` is a window that picks or creates the item and writes the
-  state file. Nothing is uploaded from that window.
-- **The picker has three tabs** — the account's published items (from `gmpublish list`, which turned
-  out to exist and made a Steamworks binding unnecessary), a pasted Workshop link resolved through
-  the keyless public API, and a new item's title, tags and icon. The last two work with Steam closed.
-- **Compile Pal grows four small things**, none of which teach it what a Workshop item is: dropdown
-  parameters, a `Configure` command that launches a plugin's own window, a per-map status command
-  whose result is shown as a chip on the queue row, and `COMPILE_PAL_ERRORS` on the child process.
-- **An unbound map stops a publishing run before it starts**, at a confirmation listing exactly which
-  items will be replaced. A plugin can only fail its own step, which is an hour of compiling too late
-  — so this one needs the host.
+- **Publishes on compile.** The step runs after packing and repacking, so what goes up is the map you
+  just built.
+- **Binds a map to an item, once.** Pick from what your account has published, or paste an item's
+  address. The choice is stored beside the map rather than in a preset — so a queue of eight maps
+  publishes to eight items, not one.
+- **Leaves the entity lump out.** A map published this way has no entities in it to decompile. See
+  [The entity lump](#the-entity-lump).
+- **Says what will happen first.** Each queued map's card shows what it will do, and a compile that
+  would publish asks first, naming the item it is about to replace.
+- **Refuses to waste a compile.** A map set to publish with nothing to publish to stops the run before
+  VBSP starts, rather than an hour later.
+- **Skips uploads nobody needs.** An addon identical to the one published last time is not uploaded
+  again, and the same item is not updated twice within a few minutes.
 
-## Why this is Garry's Mod only
+---
 
-It is the only Source game whose Workshop can be published to from a command line. `gmad.exe` and
-`gmpublish.exe` ship with the game and upload through the Steam client that is already signed in.
-CS2 removed console publishing in favour of the Workshop Manager GUI, CS:GO's publish tool was in the
-game, and TF2's is a page in the game's UI. `CompatibleGames: [4000]` in `meta.json` is that fact.
+## Installation
 
-## The security posture, in short
+1. Download the latest release and unzip it.
+2. Copy the `Shipwright` folder into your Compile Pal `Plugins` directory.
+3. Restart Compile Pal, press **+** on the step list, and add **Shipwright**.
 
-Publishing is public, irreversible for everyone who already subscribed, and easy to do by accident on
-every compile. So:
+The step appears because the folder is there, and disappears if you delete it. It only shows up for
+Garry's Mod.
 
-- **No credentials, ever.** Uploads go through the running Steam client. There is no login parameter,
-  no token file, and no SteamCMD path — `+login user pass` would put a password on a command line
-  that Compile Pal writes verbatim into `debug.log` and the compile log, which are the files people
-  paste into Discord when a compile fails. Steam, not this tool, decides whether the account owns the
-  item.
-- **Nothing is published without two separate opt-ins, per map.** A map is a dry run until it is set
-  to publish in its own Workshop window; creating a new item needs a second switch on top of that.
-  Neither lives in the preset, because a preset is shared by every map in the queue.
-- **The item is bound explicitly, never matched by name.** A `<mapname>.workshop.json` beside the
-  `.vmf` holds the ID. Before an update, the ID is looked up through Steam's keyless public API and
-  the item's real title is printed, so overwriting the wrong map is something you see rather than
-  something you discover.
-- **Only chosen files are packed.** Everything is copied into a fresh temporary directory and gmad is
-  pointed at that. Pointing gmad at the game's `maps` folder — the one-line version of this tool —
-  would publish every map on the machine, and there is no undo for that.
-- **Free text is sanitised and passed as an argument array.** Compile Pal concatenates parameter
-  values into a command line without quoting them, so a change note containing a quote can otherwise
-  re-split the arguments of the process it reaches.
-- **Nothing this tool prints can command the host.** Compile Pal treats a plugin's stdout line
-  beginning `COMPILE_PAL_SET` as an instruction to rewrite the game configuration, including the path
-  to vbsp. Every line goes out through `Log`, which neutralises that token, and forwarded gmad and
-  gmpublish output is additionally prefixed.
-- **No personal data is read or printed.** Which Steam account is signed in is Steam's business; this
-  tool checks that a process is running and nothing more.
+It needs a Compile Pal that supports plugin settings windows — [this
+fork](https://github.com/catualus/CompilePal), after 1.0.2.
 
-## The entity lump, and the thing that will bite you
+---
 
-With Compile Pal's `ENTLUMP` step, the entities live in `mapname_l_0.lmp` beside the BSP. Shipwright
-leaves it out of the addon, which is the point: clients download a map with no entities to decompile,
-and get their entities from the server they join.
+## Setting up a map
 
-The engine only accepts a `.lmp` whose **map revision** matches the BSP. A Workshop update pushes a
-new BSP — a new revision — to every subscriber in minutes, while the `.lmp` on a server is whatever
-someone copied there. So every publish means every server needs the new lump file, and until it has
-one the map loads empty with no error. Shipwright prints both revisions on every run and records the
-published one in the state file; it will not ship a `.lmp` whose revision does not match.
+Select a map in the queue, expand the **Shipwright** step and press **Workshop**. The window opens on
+that map and shows what it is: size, map revision, whether the entities have been moved out, and
+whether a nav mesh is beside it.
 
-## Layout
-
-| | |
+| Tab | For |
 |---|---|
-| `Shipwright/` | The library: everything real. |
-| `ShipwrightCli/` | The `shipwright.exe` entry point, four lines of it. |
-| `ShipwrightUi/` | `shipwright-ui.exe` — the WPF settings window Compile Pal opens. Binds, never uploads. |
-| `Shipwright.Tests/` | xUnit tests, fixtures synthesised rather than checked in. |
-| `CompilePalPlugin/Shipwright/` | `meta.json`, `parameters.json` and the plugin's own README. |
-| `build-plugin.ps1` | Publishes the executable and assembles `artifacts/Shipwright/`. |
+| **Publishing** | Whether this map publishes, whether an item may be created for it, the change note, what ships beside the map, and how often the item may be updated. |
+| **Your maps** | Everything your Steam account has published, filtered to maps. |
+| **Paste a link** | Bind by pasting an item's address. Works with Steam closed. |
+| **New item** | The title, tags and icon a new item is created with. |
 
-## Building
+Nothing in the window uploads anything. It records what the next compile should do.
+
+---
+
+## What gets published
+
+A `.gma` containing exactly this:
+
+```
+addon.json              generated: title, type "map", your tags
+maps/<name>.bsp
+maps/<name>_l_0.lmp     only if you ask for it
+maps/<name>.nav         only if you ask for it
+maps/thumb/<name>.png   if you have one
+```
+
+Everything is copied into a temporary folder and packed from there, so nothing else in your maps
+directory can end up in the addon. Your `.vmf` never goes near it.
+
+An item's description, images and visibility are set on its Workshop page. gmpublish cannot change
+them, so neither can this.
+
+---
+
+## The entity lump
+
+Compile Pal's `ENTLUMP` step moves a map's entities into a `<name>_l_0.lmp` file beside the `.bsp`.
+Shipwright leaves that file out of the addon by default, which is the point:
+
+- Subscribers download a map with no entities in it, which a decompiler can do little with.
+- They do not need them — the server they join sends the entities.
+- **Your servers do.** Copy the `.lmp` into each server's `garrysmod/maps` folder.
+
+The engine only accepts a `.lmp` whose **map revision** matches the `.bsp`. Every recompile changes
+that number, so every publish means every server needs the new `.lmp` too — until it has one, the map
+loads empty with no error. Shipwright prints both revisions on every run and refuses to ship a `.lmp`
+that does not match.
+
+Turn on **Entity lump** in the window to publish a map that plays on its own.
+
+---
+
+## Requirements
+
+- Garry's Mod installed. `gmad.exe` and `gmpublish.exe` come from its `bin` folder.
+- Steam running, signed in as the account that owns the item.
+- For a new item, a 512×512 baseline JPEG icon with 4:2:0 chroma. The window checks yours as soon as
+  you pick it.
+
+Shipwright never asks for, stores or sends a Steam password. Uploads go through the Steam client you
+are already signed in to, which is also what stops it publishing to an item you do not own.
+
+---
+
+## Limitations
+
+- **Garry's Mod only.** It is the only Source game whose Workshop can be published to from a command
+  line. CS2 uses its Workshop Manager, and TF2 and CS:GO publish from inside the game.
+- **One item per map.** Publishing several maps to a single item is not something this does.
+- **Title, tags and icon apply to new items.** Changing them on an item that already exists is done on
+  its Workshop page.
+- **A new item stays hidden** until the Steam Workshop legal agreement is accepted on its page.
+
+---
+
+## Building from source
+
+Needs the .NET 10 SDK. Windows only.
 
 ```
 dotnet test Shipwright.slnx
 ./build-plugin.ps1
 ```
 
-Then copy `artifacts/Shipwright` into your Compile Pal `Plugins` folder.
+`build-plugin.ps1` writes `artifacts/Shipwright`, the folder to copy into `Plugins`. Add `-Zip` for
+the archive attached to a release.
 
-## Before the first real publish
+The command line half works on its own — run `shipwright.exe` with no arguments for the list.
+`inspect` says what a publish would ship without touching anything.
 
-Each of these is answerable in ten minutes against a throwaway Workshop item, and each one changes
-code that is currently written to an assumption:
-
-1. **Does `gmpublish create` print the new item's ID, and in what form?** `GmodTools.ParseCreatedId`
-   takes the last long number in the output, which is a guess. If the ID cannot be recovered, an item
-   exists with no record of it and the next run would create a second one — the code treats that as
-   an error and says what to do, but the right answer is to parse the real format.
-2. **What visibility does a newly created item get, and does the Workshop legal agreement leave it
-   hidden?** If create cannot produce a hidden item, that is another argument for it staying an
-   explicit opt-in.
-3. **Does `gmpublish update` require the item to be public?** Reported by users, not documented.
-4. **Does gmpublish work while Garry's Mod is running?** Currently a warning. If it is unreliable,
-   make it a refusal, as `NAV` and `CUBEMAPS` already do for the game being open.
-5. **Where does a Garry's Mod addon stop packing?** There is a size ceiling and gmad's compression
-   fails below it; the staging report should say when a map is near it rather than after.
+---
 
 ## Licence
 
-GPL-3.0, the same as Compile Pal and Meshwright. See [LICENSE](LICENSE).
+GPL-3.0. See [LICENSE](LICENSE).
