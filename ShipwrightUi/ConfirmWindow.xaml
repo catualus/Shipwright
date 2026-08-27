@@ -1,0 +1,31 @@
+<Window x:Class="Shipwright.Ui.ConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Shipwright" SizeToContent="Height" Width="440"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        Icon="shipwright.ico"
+        Background="{DynamicResource Ground}">
+
+  <!-- The message box, in the window's own colours. The stock one is a light grey dialog with a
+       system icon, which on a dark window looks like something else's error rather than this
+       window asking a question. -->
+  <Grid Margin="18">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0" x:Name="HeadlineText" Style="{StaticResource Heading}" TextWrapping="Wrap"/>
+
+    <TextBlock Grid.Row="1" x:Name="BodyText" Margin="0,10,0,0" TextWrapping="Wrap"
+               Foreground="{DynamicResource InkSoft}"/>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+      <Button x:Name="CancelButton" Content="Cancel" Click="CancelButton_Click" IsCancel="True" MinWidth="90"/>
+      <Button x:Name="ConfirmButton" Style="{StaticResource Primary}" Margin="8,0,0,0"
+              Content="Confirm" Click="ConfirmButton_Click" IsDefault="True" MinWidth="110"/>
+    </StackPanel>
+  </Grid>
+</Window>

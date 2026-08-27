@@ -35,6 +35,10 @@ namespace Shipwright.Ui
             }
 
             var window = new BindingWindow(options);
+
+            // Before Show: an owner cannot be given to a window that is already on screen.
+            TitleBarTheme.AttachToHost(window);
+
             MainWindow = window;
             window.Show();
         }

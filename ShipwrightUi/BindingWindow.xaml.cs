@@ -59,37 +59,9 @@ namespace Shipwright.Ui
             ShowBinding();
             ShowMapFacts();
 
-            SourceInitialized += (_, _) => MatchTitleBarToTheme();
+            SourceInitialized += (_, _) => TitleBarTheme.Apply(this);
         }
 
-        /// <summary>
-        /// Asks Windows to paint the title bar dark when the rest of the window is.
-        ///
-        /// WPF does not do this on its own: a dark window opened from a dark application still gets
-        /// a white caption bar, which is the one part of it that looks like a mistake. Compile Pal
-        /// has a whole theming library for the same problem; this is the one line of it that matters
-        /// for a single window.
-        ///
-        /// Best effort. The attribute is only honoured from Windows 10 1809 onwards and the call
-        /// simply fails elsewhere, which leaves the light title bar it would have had anyway.
-        /// </summary>
-        private void MatchTitleBarToTheme()
-        {
-            try
-            {
-                var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                int dark = Theme.IsDark ? 1 : 0;
-
-                DwmSetWindowAttribute(handle, DwmUseImmersiveDarkMode, ref dark, sizeof(int));
-            }
-            catch (DllNotFoundException) { }
-            catch (EntryPointNotFoundException) { }
-        }
-
-        private const int DwmUseImmersiveDarkMode = 20;
-
-        [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
 
         private void BuildTagBoxes()
         {
@@ -556,12 +528,13 @@ namespace Shipwright.Ui
         {
             string name = title.Length > 0 ? title : id.ToString();
 
-            var confirm = MessageBox.Show(
-                $"Publishing {options.MapName} will replace:{NewLines}{name}{NewLines}" +
-                "on the Workshop, for everyone subscribed to it. Bind it?",
-                "Workshop target", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            bool confirmed = ConfirmWindow.Ask(this,
+                $"Bind {options.MapName} to \"{name}\"?",
+                "Publishing this map will replace that item on the Workshop, for everyone subscribed to it. " +
+                "Nothing is uploaded now - this only records which item it goes to.",
+                "Bind it");
 
-            if (confirm != MessageBoxResult.OK)
+            if (!confirmed)
                 return;
 
             state.WorkshopId = id.ToString();
@@ -643,12 +616,13 @@ namespace Shipwright.Ui
 
         private void UnbindButton_Click(object sender, RoutedEventArgs e)
         {
-            var confirm = MessageBox.Show(
-                $"{options.MapName} will no longer publish to item {state.WorkshopId}.\n\n" +
-                "The item itself is untouched. Remove the binding?",
-                "Workshop target", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            bool confirmed = ConfirmWindow.Ask(this,
+                $"Unbind {options.MapName}?",
+                $"It will no longer publish to item {state.WorkshopId}. The item itself is untouched, and " +
+                "nothing on the Workshop changes.",
+                "Remove the binding");
 
-            if (confirm != MessageBoxResult.OK)
+            if (!confirmed)
                 return;
 
             state.WorkshopId = null;
@@ -671,10 +645,9 @@ namespace Shipwright.Ui
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                MessageBox.Show(
-                    $"{options.StatePath} could not be written:\n\n{e.Message}\n\n" +
-                    "Nothing was changed. A read-only map folder is the usual cause.",
-                    "Workshop target", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ConfirmWindow.Tell(this, "That could not be saved",
+                    $"{options.StatePath} could not be written: {e.Message} Nothing was changed, and a " +
+                    "read-only map folder is the usual cause.");
                 return false;
             }
         }

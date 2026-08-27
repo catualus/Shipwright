@@ -19,6 +19,9 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
+    <!-- The executable's icon in Explorer and the taskbar. -->
+    <ApplicationIcon>shipwright.ico</ApplicationIcon>
+
     <!--
       NOT InvariantGlobalization, which the console half of this does set. WPF's font machinery
       constructs a CultureInfo for "en" while measuring the very first line of text, and in
@@ -27,6 +30,11 @@
     -->
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
+
+  <!-- And the same file as a resource, which is what Icon="shipwright.ico" on a window resolves. -->
+  <ItemGroup>
+    <Resource Include="shipwright.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Shipwright\Shipwright.csproj" />
