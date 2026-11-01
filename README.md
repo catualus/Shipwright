@@ -54,8 +54,10 @@ publishes at all. Nothing is uploaded until you turn it on for that map.
 The step appears because the folder is there, and disappears if you delete it. It only shows up for
 Garry's Mod.
 
-It needs a Compile Pal that supports plugin settings windows — [this
-fork](https://github.com/catualus/CompilePal), after 1.0.2.
+It needs a Compile Pal that supports plugin settings windows and the `$sourceVmf$` variable — [this
+fork](https://github.com/catualus/CompilePal), after 1.2.1. The step finds the map's Workshop settings
+beside the map as queued, so a step earlier in the compile that hands VBSP a copy of the map (VMFFIX,
+Viswright) does not hide them.
 
 ---
 

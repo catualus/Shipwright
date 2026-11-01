@@ -10,7 +10,7 @@
   "Warning": "Publishing is public and cannot be undone. Nothing is uploaded until a map is set to publish in the Workshop window - the button on this step.",
   "PresetDefault": false,
   "CheckExitCode": true,
-  "BasisString": " -bin $binFolder$ -vmf $vmfFile$ -gamename $gameName$",
+  "BasisString": " -bin $binFolder$ -vmf $sourceVmf$ -gamename $gameName$",
   "SupportsBSP": true,
   "Configure": "Plugins\\Shipwright\\shipwright-ui.exe -vmf \"$vmfFile$\" -bsp \"$mapCopyLocation$\" -bin \"$binFolder$\"",
   "ConfigureLabel": "Workshop",
