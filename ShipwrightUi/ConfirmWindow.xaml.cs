@@ -15,7 +15,8 @@ namespace Shipwright.Ui
     {
         public bool Confirmed { get; private set; }
 
-        public ConfirmWindow(Window owner, string headline, string body, string confirmLabel)
+        public ConfirmWindow(Window owner, string headline, string body, string confirmLabel,
+            bool enterCancels = false)
         {
             InitializeComponent();
 
@@ -24,13 +25,26 @@ namespace Shipwright.Ui
             BodyText.Text = body;
             ConfirmButton.Content = confirmLabel;
 
+            if (enterCancels)
+            {
+                ConfirmButton.IsDefault = false;
+                CancelButton.IsDefault = true;
+            }
+
             SourceInitialized += (_, _) => TitleBarTheme.Apply(this);
         }
 
-        /// <summary>Shows the question and returns whether it was answered yes.</summary>
-        public static bool Ask(Window owner, string headline, string body, string confirmLabel)
+        /// <summary>
+        /// Shows the question and returns whether it was answered yes.
+        ///
+        /// <paramref name="enterCancels"/> is for the questions where yes is the unusual answer:
+        /// Enter is pressed out of habit, often still on its way from the box that was just typed in,
+        /// and for those it should mean no.
+        /// </summary>
+        public static bool Ask(Window owner, string headline, string body, string confirmLabel,
+            bool enterCancels = false)
         {
-            var window = new ConfirmWindow(owner, headline, body, confirmLabel);
+            var window = new ConfirmWindow(owner, headline, body, confirmLabel, enterCancels);
             window.ShowDialog();
 
             return window.Confirmed;

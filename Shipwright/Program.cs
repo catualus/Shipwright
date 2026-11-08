@@ -273,6 +273,7 @@ namespace Shipwright
             Log.Line("  -changes <text>       change note for an update");
             Log.Line("  -changesfile <path>   change note read from a file");
             Log.Line("  -force                publish even if nothing changed or it is too soon");
+            Log.Line("  -allownonmap          publish to an item Steam lists as something other than a map");
             Log.Line("  -mininterval <mins>   minimum minutes between publishes of one item (default 5)");
             Log.Line("  -offline              skip looking the item up before overwriting it");
             Log.Line("  -bin <folder>         where gmad.exe and gmpublish.exe are");

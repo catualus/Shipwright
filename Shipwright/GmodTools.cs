@@ -177,13 +177,34 @@ namespace Shipwright
         }
 
         /// <summary>
-        /// Recovers the ID of a newly created item from gmpublish's output.
+        /// The ID gmpublish announces the moment Steam has made a new item, and nothing else.
         ///
-        /// UNVERIFIED, AND TREATED AS SUCH
+        /// gmpublish creates an item in two steps. It asks Steam for a new, empty item and prints
+        /// "Success! Your new item ID is %llu!" - that wording is read out of gmpublish 1.2 itself,
+        /// not guessed - and only then sets the title, icon, tags and file, any of which can fail.
+        /// When one does, gmpublish exits 1 with the item already on the account, and this line is
+        /// the only record of which item it is.
         ///
-        /// gmpublish is closed source and its create output is not documented. What is documented is
-        /// that a created item has an ID, and that the ID is a long decimal number - so this looks
-        /// for one and takes the last, which is the one nearest whatever success line was printed.
+        /// Only this line, because on a failed run any other long number is suspect: Steam's own
+        /// startup line prints the account's SteamID, which is as long as a Workshop ID, and a map
+        /// bound to that would be worse than a map bound to nothing.
+        /// </summary>
+        public static ulong? ParseAnnouncedId(string output)
+        {
+            var announced = Regex.Match(output, @"new item ID is\s+(?<id>\d{1,20})\b", RegexOptions.IgnoreCase);
+
+            return announced.Success && Sanitize.IsWorkshopId(announced.Groups["id"].Value, out ulong id)
+                ? id
+                : null;
+        }
+
+        /// <summary>
+        /// Recovers the ID of a newly created item from the output of a create that succeeded.
+        ///
+        /// The fallback for <see cref="ParseAnnouncedId"/>, for a gmpublish whose wording has
+        /// changed: it takes the last long decimal number, which after a successful create is the
+        /// item's page address gmpublish prints at the very end. Only for a run that exited 0 - on a
+        /// failed one the last long number can be the account's SteamID.
         ///
         /// The caller must handle this returning null as a serious event and not as a failure to
         /// publish: at that point an item exists on the account with content on it, and the only

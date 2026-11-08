@@ -6,10 +6,16 @@
     "Warning": "Every subscriber and every server redownloads the addon for an update that contains nothing new."
   },
   {
+    "Name": "Publish to an item that is not a map",
+    "Parameter": " -allownonmap",
+    "Description": "Publish even when Steam lists the bound item as something other than a map - a content pack, a weapon pack - which is otherwise refused. Only for an item that really is meant to become this map. An item that belongs to another game is still refused.",
+    "Warning": "The item's current contents are replaced by this map for everyone subscribed to it and every server that mounts it."
+  },
+  {
     "Name": "Do not look the item up first",
     "Parameter": " -offline",
-    "Description": "Skip asking Steam's public API what the item being updated actually is. The lookup needs no account and no key, and it is what puts the name of the map you are about to replace in the log.",
-    "Warning": "Without it, a wrong item is only discovered after the upload."
+    "Description": "Skip asking Steam's public API what the item being updated actually is. The lookup needs no account and no key. It is what puts the name of the map you are about to replace in the log, and what refuses to publish over an item that is not a map.",
+    "Warning": "Without it, a wrong item - another game's, or one that is not a map - is only discovered after the upload."
   },
   {
     "Name": "Keep the staging folder",

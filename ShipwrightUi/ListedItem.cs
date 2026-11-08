@@ -14,5 +14,10 @@ namespace Shipwright.Ui
     /// which row is the answer, and a list that still offered "Bind" on the row you had just bound
     /// gave no sign that anything had happened.
     /// </param>
-    public sealed record ListedItem(ulong Id, string Title, bool IsMap, string Detail, bool IsBound = false);
+    /// <param name="Details">
+    /// What Steam said about the item, or null when it could not say. Kept so that binding a row
+    /// can ask the same question about its type that pasting its link does.
+    /// </param>
+    public sealed record ListedItem(ulong Id, string Title, bool IsMap, string Detail, bool IsBound = false,
+        ItemDetails? Details = null);
 }

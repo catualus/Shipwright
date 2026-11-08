@@ -52,6 +52,14 @@ namespace Shipwright
         /// <summary>Publish even when the packed addon is byte for byte what was published last time.</summary>
         public bool Force;
 
+        /// <summary>
+        /// Publish to an item Steam lists as something other than a map, which is otherwise refused.
+        /// Its own flag rather than part of -force, which people leave on for re-uploads: folded in
+        /// there, the one check that stops a content pack being replaced by a map would be off for
+        /// exactly the people most likely to run into it.
+        /// </summary>
+        public bool AllowNonMap;
+
         /// <summary>Refuse to publish the same item again within this many minutes.</summary>
         public int MinIntervalMinutes = 5;
 
@@ -87,6 +95,7 @@ namespace Shipwright
                     case "-includenav": options.IncludeNav = true; break;
                     case "-includeain": options.IncludeAin = true; break;
                     case "-force": options.Force = true; break;
+                    case "-allownonmap": options.AllowNonMap = true; break;
                     case "-keepstaging": options.KeepStaging = true; break;
                     case "-offline": options.Offline = true; break;
 

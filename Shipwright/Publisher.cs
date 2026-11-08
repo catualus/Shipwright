@@ -142,21 +142,21 @@ namespace Shipwright
                 var details = WorkshopLookup.Describe(id, TimeSpan.FromSeconds(10));
 
                 if (details.Found)
-                {
-                    Log.Check($"item {id} is \"{details.Title}\", app {details.ConsumerAppId}" +
+                    Log.Check($"item {id} is \"{details.Title}\", " +
+                              (details.Kind.Length > 0 ? $"type {details.Kind}" : "with no type tag") +
+                              $", app {details.ConsumerAppId}" +
                               (details.Updated is { } when_ ? $", last updated {when_.ToLocalTime():yyyy-MM-dd HH:mm}" : ""));
 
-                    if (details.ConsumerAppId != WorkshopLookup.GarrysModAppId)
-                    {
-                        Log.Error($"item {id} belongs to app {details.ConsumerAppId}, not Garry's Mod " +
-                                  $"({WorkshopLookup.GarrysModAppId}). Refusing to touch it.");
-                        return Failed;
-                    }
-                }
-                else
+                var check = CheckTarget(id, details, options.AllowNonMap);
+
+                if (check.Verdict == TargetVerdict.Refuse)
                 {
-                    Log.Warn($"item {id} {details.Message}");
+                    Log.Error(check.Message);
+                    return Failed;
                 }
+
+                if (check.Verdict == TargetVerdict.Warn)
+                    Log.Warn(check.Message);
             }
 
             if (wouldCreate && !options.ResolveAllowCreate(state))
@@ -260,43 +260,212 @@ namespace Shipwright
             Log.Out("creating a new Workshop item");
 
             var result = GmodTools.Create(gmpublish, gmaPath, icoBeside);
+            var reading = ReadCreate(result);
 
-            if (!result.Ok)
+            switch (reading.Outcome)
             {
-                Log.Error($"gmpublish failed with exit code {result.ExitCode}. Its output is above.");
-                return Failed;
+                case CreateOutcome.CreatedEmpty:
+                {
+                    ulong orphan = reading.Id!.Value;
+
+                    /*
+                     * Recorded before anything else is said. The item is on the account, hidden and
+                     * empty, and a map left unbound would have a second one created for it by the next
+                     * compile that is allowed to create.
+                     */
+                    bool bound = RecordEmptyItem(options, state, orphan);
+
+                    Log.Error($"item {orphan} was created but its upload failed (gmpublish exit code " +
+                              $"{result.ExitCode}; its output is above). " +
+                              (bound
+                                  ? "The map is bound to it now, so the next compile will update it rather than " +
+                                    "create another. "
+                                  : "") +
+                              "An update does not set a title or icon, so if the item's page shows neither, " +
+                              $"set them there: {WorkshopLink.UrlFor(orphan)}");
+
+                    if (NeedsLegalAgreement(result))
+                        Log.Warn($"Steam also wants the Workshop legal agreement accepted first: {LegalAgreementUrl}");
+
+                    return Failed;
+                }
+
+                case CreateOutcome.AgreementNeeded:
+                    /*
+                     * gmpublish treats this as a failed create and prints no ID, but Steam reports it
+                     * alongside an item it has already made. Creating again before looking would make
+                     * a second one.
+                     */
+                    Log.Error("Steam would not finish creating the item until this account accepts the Steam " +
+                              $"Workshop legal agreement: {LegalAgreementUrl}. gmpublish printed no ID, but Steam " +
+                              "has probably made the item anyway. Accept the agreement, then look in " +
+                              "https://steamcommunity.com/my/myworkshopfiles/ before compiling again: if an " +
+                              "empty item is there, bind this map to it on the Your maps tab of the Workshop " +
+                              "window, or the next compile will create a second one.");
+                    return Failed;
+
+                case CreateOutcome.NoSteam:
+                    Log.Error("gmpublish could not reach Steam, so nothing was created.");
+                    ExplainSteamFailure(result);
+                    return Failed;
+
+                case CreateOutcome.Failed:
+                    Log.Error($"gmpublish failed with exit code {result.ExitCode} and announced no new item. " +
+                              "Its output is above.");
+                    return Failed;
+
+                case CreateOutcome.IdUnreadable:
+                    /*
+                     * The worst outcome this program has. The item probably exists, with the map on it,
+                     * and nothing here knows its ID - so the next run would create a second one. Said as
+                     * an error, with what to do about it, rather than as a successful publish.
+                     */
+                    Log.Error("the item was created but its ID could not be read from gmpublish's output. " +
+                              "Find it at https://steamcommunity.com/my/myworkshopfiles/ and put the ID in " +
+                              $"{Path.GetFileName(options.StatePath!)} before publishing again, or the next run " +
+                              "will create a second item.");
+                    return Failed;
             }
 
-            if (FailedToReachSteam(result))
-            {
-                Log.Error("gmpublish could not reach Steam, so nothing was created.");
-                ExplainSteamFailure(result);
-                return Failed;
-            }
+            ulong created = reading.Id!.Value;
 
-            ulong? created = GmodTools.ParseCreatedId(result.Output);
+            Record(options, state, created, facts, hash);
 
-            if (created is null)
-            {
-                /*
-                 * The worst outcome this program has. The item probably exists, with the map on it,
-                 * and nothing here knows its ID - so the next run would create a second one. Said as
-                 * an error, with what to do about it, rather than as a successful publish.
-                 */
-                Log.Error("the item was created but its ID could not be read from gmpublish's output. " +
-                          "Find it at https://steamcommunity.com/my/myworkshopfiles/ and put the ID in " +
-                          $"{Path.GetFileName(options.StatePath!)} before publishing again, or the next run " +
-                          "will create a second item.");
-                return Failed;
-            }
-
-            Record(options, state, created.Value, facts, hash);
-
-            Log.Out($"created item {created.Value}. {WorkshopLink.UrlFor(created.Value)}");
+            Log.Out($"created item {created}. {WorkshopLink.UrlFor(created)}");
             Log.Warn("a newly created item stays hidden until the Steam Workshop legal agreement has been " +
                      "accepted on its page, and its description and images are set on the website.");
             WarnAboutStrippedEntities(facts, options, state);
             return Ok;
+        }
+
+        /// <summary>Where Steam sends an account to accept the Workshop legal agreement.</summary>
+        private const string LegalAgreementUrl = "https://steamcommunity.com/sharedfiles/workshoplegalagreement";
+
+        /// <summary>What a create left behind, as far as gmpublish's exit code and output can tell.</summary>
+        internal enum CreateOutcome
+        {
+            /// <summary>The item exists and the map is on it.</summary>
+            Created,
+
+            /// <summary>The item exists and its ID is known, but setting its title, icon, tags or file failed.</summary>
+            CreatedEmpty,
+
+            /// <summary>Steam held the create back for the legal agreement, and gmpublish printed no ID.</summary>
+            AgreementNeeded,
+
+            /// <summary>gmpublish never reached Steam. Nothing was created.</summary>
+            NoSteam,
+
+            /// <summary>gmpublish failed and never announced an item.</summary>
+            Failed,
+
+            /// <summary>gmpublish reported success but no ID could be read from what it printed.</summary>
+            IdUnreadable,
+        }
+
+        internal sealed record CreateReading(CreateOutcome Outcome, ulong? Id = null);
+
+        /// <summary>
+        /// Reads a create run, ID first and exit code second.
+        ///
+        /// The other way round - the order this used to have - threw away the one thing a failed
+        /// create can still tell us. gmpublish announces the new item's ID as soon as Steam has made
+        /// it, and only then uploads the title, icon, tags and file; a failure there exits 1 with an
+        /// empty item on the account. Reading the exit code first meant that item's ID was never
+        /// recorded, and the next compile allowed to create made a second item beside it.
+        /// </summary>
+        internal static CreateReading ReadCreate(ToolResult result)
+        {
+            ulong? announced = GmodTools.ParseAnnouncedId(result.Output);
+
+            if (result.Ok && !FailedToReachSteam(result))
+            {
+                ulong? id = announced ?? GmodTools.ParseCreatedId(result.Output);
+
+                return id is { } created
+                    ? new CreateReading(CreateOutcome.Created, created)
+                    : new CreateReading(CreateOutcome.IdUnreadable);
+            }
+
+            if (announced is { } orphan)
+                return new CreateReading(CreateOutcome.CreatedEmpty, orphan);
+
+            if (NeedsLegalAgreement(result))
+                return new CreateReading(CreateOutcome.AgreementNeeded);
+
+            if (FailedToReachSteam(result))
+                return new CreateReading(CreateOutcome.NoSteam);
+
+            return new CreateReading(CreateOutcome.Failed);
+        }
+
+        /// <summary>
+        /// Whether Steam turned the run away until the account accepts the Workshop legal agreement.
+        ///
+        /// gmpublish says so in two places - instead of the new item's ID, and as the reason the
+        /// upload after it failed - and both carry the same sentence about the Workshop ToS.
+        /// </summary>
+        private static bool NeedsLegalAgreement(ToolResult result) =>
+            result.Output.Contains("agree to Workshop ToS", StringComparison.OrdinalIgnoreCase) ||
+            result.Output.Contains("workshoplegalagreement", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Whether a lookup's answer lets this run replace the item.</summary>
+        internal enum TargetVerdict
+        {
+            Proceed,
+            Warn,
+            Refuse,
+        }
+
+        internal sealed record TargetCheck(TargetVerdict Verdict, string Message);
+
+        /// <summary>
+        /// Whether the item about to be replaced is one this run may replace.
+        ///
+        /// The binding is a number, and a number cannot be checked by eye. Two answers stop the run.
+        /// An item belonging to another game is never this tool's to touch, whatever the flags. An item
+        /// Steam lists as some other kind of addon is the mistake this exists for: paste the link of
+        /// a server's "Map Content" pack, bind it, and the next publish replaces the content pack
+        /// with the map for every subscriber and every server that mounts it. -allownonmap lets that one
+        /// through, for the rare item that really is meant to become a map.
+        ///
+        /// An item with no tags, or one the lookup could not see, says nothing either way. A new item
+        /// is hidden from the public lookup until its legal agreement is accepted, and one whose
+        /// first upload failed has no tags yet - refusing those would refuse the items most likely to
+        /// be right. They warn and carry on.
+        /// </summary>
+        internal static TargetCheck CheckTarget(ulong id, ItemDetails details, bool allowNonMap)
+        {
+            if (!details.Found)
+                return new TargetCheck(TargetVerdict.Warn, $"item {id} {details.Message}");
+
+            if (details.ConsumerAppId != WorkshopLookup.GarrysModAppId)
+                return new TargetCheck(TargetVerdict.Refuse,
+                    $"item {id} belongs to app {details.ConsumerAppId}, not Garry's Mod " +
+                    $"({WorkshopLookup.GarrysModAppId}). Refusing to touch it.");
+
+            if (details.IsMap)
+                return new TargetCheck(TargetVerdict.Proceed, "");
+
+            if (!details.IsKnownNotMap)
+                return new TargetCheck(TargetVerdict.Warn,
+                    $"item {id} has no tags, so Steam does not say what kind of item it is. Publishing " +
+                    "replaces whatever it holds with this map - make sure it is this map's item.");
+
+            string what = details.Kind.Length > 0
+                ? $"Steam lists it as {details.Kind}"
+                : $"its tags are {string.Join(", ", details.Tags!)}, and none of them is Map";
+
+            if (allowNonMap)
+                return new TargetCheck(TargetVerdict.Warn,
+                    $"item {id} is not a map: {what}. Publishing to it anyway because of -allownonmap, which " +
+                    "replaces it with this map for everyone subscribed to it.");
+
+            return new TargetCheck(TargetVerdict.Refuse,
+                $"item {id} is not a map: {what}. Publishing would replace it with this map for every " +
+                "subscriber and every server that mounts it, so nothing was uploaded. Bind this map to its " +
+                "own item in the Workshop window - or, if this item really is meant to become this map, " +
+                "turn on the step's \"Publish to an item that is not a map\" parameter (-allownonmap).");
         }
 
         /// <summary>
@@ -338,15 +507,42 @@ namespace Shipwright
             state.EntitiesStripped = facts.EntitiesStripped;
             state.GmaSha256 = hash;
 
+            SaveBinding(options, state, id, "the publish succeeded");
+        }
+
+        /// <summary>
+        /// Binds the map to an item that exists but never received the map.
+        ///
+        /// The binding and nothing else. The hash, the time and the revision describe what was
+        /// published, and nothing was: a hash would let the next run decide the item already holds
+        /// this addon and skip it, and a time would make it wait out the minimum interval for an
+        /// upload that never happened. Both are cleared rather than left alone, because an unbound
+        /// map can still carry them from an item it was bound to before.
+        /// </summary>
+        internal static bool RecordEmptyItem(Options options, WorkshopState state, ulong id)
+        {
+            state.WorkshopId = id.ToString();
+            state.Title = options.ResolveTitle(state);
+            state.LastPublished = null;
+            state.GmaSha256 = null;
+
+            return SaveBinding(options, state, id, $"item {id} was created");
+        }
+
+        /// <summary>Writes the state file, and says plainly what to do by hand when it cannot.</summary>
+        private static bool SaveBinding(Options options, WorkshopState state, ulong id, string whatHappened)
+        {
             try
             {
                 state.Save(options.StatePath!);
                 Log.Out($"recorded in {Path.GetFileName(options.StatePath!)}");
+                return true;
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                Log.Error($"the publish succeeded but {options.StatePath} could not be written: {e.Message}. " +
+                Log.Error($"{whatHappened} but {options.StatePath} could not be written: {e.Message}. " +
                           $"Put the ID {id} in it by hand, or the next run will create a second item.");
+                return false;
             }
         }
 

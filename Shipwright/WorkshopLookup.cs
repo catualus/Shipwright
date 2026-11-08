@@ -31,6 +31,41 @@ namespace Shipwright
         /// </summary>
         public bool IsMap =>
             Tags?.Any(t => string.Equals(t, "Map", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+        /// <summary>
+        /// What kind of item this is, as Steam has the tag written - "map", "ServerContent",
+        /// "Weapon" - or empty when no tag says.
+        ///
+        /// The type is one tag among several: an addon also carries "Addon" and up to two of fun,
+        /// roleplay and the rest, in no promised order. So the type is picked out by name rather
+        /// than taken from a position. Saves, dupes and demos are not addons at all and carry their
+        /// own category instead, which names them just as well.
+        /// </summary>
+        public string Kind =>
+            Tags?.FirstOrDefault(t => AddonTypes.Contains(t))
+            ?? Tags?.FirstOrDefault(t => OtherCategories.Contains(t))
+            ?? "";
+
+        /// <summary>
+        /// Whether the tags say plainly that this is something other than a map.
+        ///
+        /// False for a map, and also false for an item with no tags or one the lookup could not
+        /// see: those say nothing either way, and a newly created item - hidden until its legal
+        /// agreement is accepted, and empty if its first upload failed - is exactly that.
+        /// </summary>
+        public bool IsKnownNotMap => Found && Tags is { Count: > 0 } && !IsMap;
+
+        /// <summary>The types gmad accepts in addon.json, which Garry's Mod turns into a Workshop tag.</summary>
+        private static readonly HashSet<string> AddonTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "gamemode", "map", "weapon", "vehicle", "npc", "entity", "tool", "effects", "model", "servercontent",
+        };
+
+        /// <summary>Garry's Mod Workshop items that are not addons, uploaded from inside the game.</summary>
+        private static readonly HashSet<string> OtherCategories = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "save", "dupe", "demo",
+        };
     }
 
     /// <summary>
