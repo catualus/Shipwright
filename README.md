@@ -38,6 +38,9 @@ publishes at all. Nothing is uploaded until you turn it on for that map.
   [The entity lump](#the-entity-lump).
 - **Says what will happen first.** Each queued map's card shows what it will do, and a compile that
   would publish asks first, naming the item it is about to replace.
+- **Only replaces maps.** Before uploading it looks the item up, and refuses one Steam lists as some
+  other kind of addon — a content pack, a weapon pack — unless the step is forced. Binding one in the
+  window asks first, by name.
 - **Refuses to waste a compile.** A map set to publish with nothing to publish to stops the run before
   VBSP starts, rather than an hour later.
 - **Skips uploads nobody needs.** An addon identical to the one published last time is not uploaded

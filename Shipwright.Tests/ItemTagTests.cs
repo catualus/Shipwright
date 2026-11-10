@@ -89,6 +89,30 @@ namespace Shipwright.Tests
         }
 
         [Fact]
+        public void TheTypeIsPickedOutOfTheOtherTagsWhereverItSits()
+        {
+            var items = WorkshopLookup.ParseAll(TwoItems);
+
+            Assert.Equal("map", items[0].Kind);
+            Assert.Equal("Weapon", items[1].Kind);
+            Assert.True(items[1].IsKnownNotMap);
+        }
+
+        [Fact]
+        public void AnItemWithNoTagsHasNoTypeAndIsNotKnownToBeAnythingElse()
+        {
+            var items = WorkshopLookup.ParseAll(
+                """{"response":{"publishedfiledetails":[{"publishedfileid":"1","result":1,"title":"x"}]}}""");
+
+            Assert.Equal("", items[0].Kind);
+            Assert.False(items[0].IsKnownNotMap);
+        }
+
+        [Fact]
+        public void AnItemTheLookupCouldNotSeeIsNotKnownToBeAnything() =>
+            Assert.False(new ItemDetails(false, "no public item has that ID.").IsKnownNotMap);
+
+        [Fact]
         public void AResponseWithNothingInItIsNoItems() =>
             Assert.Empty(WorkshopLookup.ParseAll("""{"response":{"result":1,"resultcount":0}}"""));
     }

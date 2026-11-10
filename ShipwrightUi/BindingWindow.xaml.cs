@@ -343,13 +343,22 @@ namespace Shipwright.Ui
 
                 mine = items.Select(item =>
                 {
-                    bool isMap = byId.TryGetValue(item.Id, out var found) && found.IsMap;
+                    var found = byId.GetValueOrDefault(item.Id);
 
-                    string when = byId.TryGetValue(item.Id, out var d) && d.Updated is { } updated
+                    /*
+                     * Every row says what it is, not only the maps. A row with nothing after its ID
+                     * read as "not a map, presumably", which is not the same as Steam saying it is a
+                     * content pack - and the content pack is the row that must not be bound.
+                     */
+                    string type = !typesKnown ? ""
+                        : found is null ? "  ·  type unknown"
+                        : $"  ·  {TypeOf(found)}";
+
+                    string when = found?.Updated is { } updated
                         ? $"  ·  updated {updated.ToLocalTime():yyyy-MM-dd}"
                         : "";
 
-                    return new ListedItem(item.Id, item.Title, isMap, (isMap ? "  ·  map" : "") + when);
+                    return new ListedItem(item.Id, item.Title, found?.IsMap ?? false, type + when, Details: found);
                 }).ToList();
 
                 OnlyMapsBox.IsEnabled = typesKnown;
@@ -418,7 +427,7 @@ namespace Shipwright.Ui
         private void BindMineButton_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.Tag is ListedItem item)
-                BindTo(item.Id, item.Title);
+                BindTo(item.Id, item.Title, item.Details);
         }
 
         private async void LookUpButton_Click(object sender, RoutedEventArgs e)
@@ -451,15 +460,21 @@ namespace Shipwright.Ui
                 lookedUpId = id;
 
                 ResultTitleText.Text = details.Title.Length > 0 ? details.Title : "(untitled)";
-                ResultDetailText.Text = Describe(details);
+                ResultDetailText.Text = Describe(details, id);
                 ResultCreatorText.Text = details.Creator.Length > 0 ? $"creator {details.Creator}" : "";
 
                 bool rightGame = details.ConsumerAppId == WorkshopLookup.GarrysModAppId;
 
-                ResultWarningText.Visibility = rightGame ? Visibility.Collapsed : Visibility.Visible;
-                ResultWarningText.Text = rightGame
-                    ? ""
-                    : $"This item belongs to app {details.ConsumerAppId}, not Garry's Mod. It cannot be published to from here.";
+                ResultWarningText.Text =
+                    !rightGame
+                        ? $"This item belongs to app {details.ConsumerAppId}, not Garry's Mod. It cannot be published to from here."
+                    : details.IsKnownNotMap
+                        ? $"{Identify(id, details)} Publishing this map to it would replace it for everyone subscribed to it."
+                    : !details.IsMap
+                        ? $"{Identify(id, details)} Make sure it is this map's item."
+                    : "";
+
+                ResultWarningText.Visibility = ResultWarningText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
                 BindButton.IsEnabled = rightGame;
                 ResultPanel.Visibility = Visibility.Visible;
@@ -473,9 +488,17 @@ namespace Shipwright.Ui
             }
         }
 
-        private static string Describe(ItemDetails details)
+        /// <summary>
+        /// The line under a looked-up item's title: what kind of item it is, its ID, and when and how
+        /// big. The kind comes first because it is the thing most worth noticing - a content pack
+        /// pasted by mistake has a title that reads like the map's.
+        /// </summary>
+        private static string Describe(ItemDetails details, ulong id)
         {
-            var parts = new List<string> { $"Garry's Mod item {details.ConsumerAppId}" };
+            var parts = new List<string> { TypeOf(details), $"item {id}" };
+
+            if (details.ConsumerAppId != WorkshopLookup.GarrysModAppId)
+                parts.Add($"app {details.ConsumerAppId}");
 
             if (details.Updated is { } updated)
                 parts.Add($"updated {updated.ToLocalTime():yyyy-MM-dd}");
@@ -485,6 +508,26 @@ namespace Shipwright.Ui
 
             return string.Join(" · ", parts);
         }
+
+        /// <summary>An item's type in a word or two: "map", the type tag Steam has, or that it has none.</summary>
+        private static string TypeOf(ItemDetails details) =>
+            details.IsMap ? "map"
+            : details.Kind.Length > 0 ? details.Kind
+            : details.Tags is { Count: > 0 } ? "not a map"
+            : "no type tag";
+
+        /// <summary>
+        /// One sentence naming the item and what Steam says it is, for the places that ask about
+        /// binding it.
+        /// </summary>
+        private static string Identify(ulong id, ItemDetails? details) => details switch
+        {
+            null or { Found: false } => $"Item {id}. Steam did not say what kind of item it is.",
+            { IsMap: true } => $"Item {id}, a map.",
+            { IsKnownNotMap: false } => $"Item {id} has no type tag, so Steam does not say what kind of item it is.",
+            { Kind.Length: > 0 } => $"Steam lists item {id} as {details.Kind}, not a map.",
+            _ => $"Steam lists item {id} with the tags {string.Join(", ", details.Tags!)}, and none of them is Map.",
+        };
 
         /// <summary>
         /// Fetches the item's preview picture.
@@ -532,7 +575,7 @@ namespace Shipwright.Ui
         private void BindButton_Click(object sender, RoutedEventArgs e)
         {
             if (lookedUp is { } details)
-                BindTo(lookedUpId, details.Title);
+                BindTo(lookedUpId, details.Title, details);
         }
 
         /// <summary>
@@ -541,16 +584,33 @@ namespace Shipwright.Ui
         /// The confirmation names the item rather than asking "are you sure", because the mistake it
         /// guards against is not carelessness - it is picking the row above the one you meant, which
         /// looks exactly like success until a compile replaces the wrong map.
+        ///
+        /// An item Steam lists as something other than a map gets a different question, not a second
+        /// one after the first: two dialogs in a row teach the second to be clicked through. That one
+        /// leads with what the item is, says what binding it costs its subscribers, and answers no to
+        /// Enter.
         /// </summary>
-        private void BindTo(ulong id, string title)
+        private void BindTo(ulong id, string title, ItemDetails? details)
         {
             string name = title.Length > 0 ? title : id.ToString();
 
-            bool confirmed = ConfirmWindow.Ask(this,
-                $"Bind {options.MapName} to \"{name}\"?",
-                "Publishing this map will replace that item on the Workshop, for everyone subscribed to it. " +
-                "Nothing is uploaded now - this only records which item it goes to.",
-                "Bind it");
+            const string NothingNow = "Nothing is uploaded now - this only records which item it goes to.";
+
+            bool confirmed = details is { IsKnownNotMap: true }
+                ? ConfirmWindow.Ask(this,
+                    $"\"{name}\" is not a map",
+                    $"{Identify(id, details)} Binding {options.MapName} to it means publishing replaces whatever " +
+                    "it holds with this map, for everyone subscribed to it - and they lose what they subscribed for." +
+                    NewLines +
+                    "The compile step refuses to publish to an item that is not a map unless its \"Publish to an " +
+                    $"item that is not a map\" parameter (-allownonmap) is on. {NothingNow}",
+                    "Bind it anyway",
+                    enterCancels: true)
+                : ConfirmWindow.Ask(this,
+                    $"Bind {options.MapName} to \"{name}\"?",
+                    $"{Identify(id, details)} Publishing this map will replace that item on the Workshop, for " +
+                    $"everyone subscribed to it. {NothingNow}",
+                    "Bind it");
 
             if (!confirmed)
                 return;
